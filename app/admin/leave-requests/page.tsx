@@ -1,0 +1,444 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { useAuth } from '@/lib/auth/auth-context';
+import {
+  getLeaves,
+  approveLeave,
+  rejectLeave,
+  toggleLeaveCalendarVisibility,
+  subscribeToStore,
+} from '@/lib/data/store';
+import { LeaveRequest } from '@/types';
+import { formatDisplayDate, formatDateRange, calculateDaysCount } from '@/lib/utils/date-utils';
+import { StatusBadge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Card, CardHeader, CardContent } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
+import { useToast } from '@/components/ui/Toast';
+import {
+  ClipboardList,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Filter,
+  Eye,
+  ShieldCheck,
+  AlertCircle,
+  FileText,
+  User,
+  EyeOff,
+} from 'lucide-react';
+
+export default function AdminLeaveRequestsPage() {
+  const { user, isAdmin } = useAuth();
+  const { success, error: toastError } = useToast();
+
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>('pending');
+  const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [targetRejectId, setTargetRejectId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const loadData = () => {
+    setLeaves(getLeaves());
+  };
+
+  useEffect(() => {
+    loadData();
+    const unsub = subscribeToStore(loadData);
+    return unsub;
+  }, []);
+
+  const handleApprove = async (leaveId: string, empName: string, showOnCal: boolean = false) => {
+    if (!user) return;
+    setIsProcessing(true);
+    try {
+      const res = await approveLeave(leaveId, user.id, showOnCal);
+      if (res.success) {
+        success(`Leave for ${empName} approved.${showOnCal ? ' Marked visible on calendar.' : ' Kept hidden.'}`, 'Leave Approved');
+        loadData();
+        setSelectedLeave(null);
+      } else {
+        toastError(res.message);
+      }
+    } catch {
+      toastError('Failed to approve leave request.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleToggleVisibility = async (leaveId: string, newVisibility: boolean) => {
+    setIsProcessing(true);
+    try {
+      const res = await toggleLeaveCalendarVisibility(leaveId, newVisibility);
+      if (res.success) {
+        success(res.message, 'Visibility Updated');
+        loadData();
+      } else {
+        toastError(res.message);
+      }
+    } catch {
+      toastError('Failed to update visibility.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOpenReject = (leaveId: string) => {
+    setTargetRejectId(leaveId);
+    setRejectReason('Operational commitments');
+    setRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!targetRejectId || !user) return;
+    setIsProcessing(true);
+    try {
+      const res = await rejectLeave(targetRejectId, user.id, rejectReason);
+      if (res.success) {
+        success('Leave request rejected.', 'Leave Rejected');
+        setRejectModalOpen(false);
+        setTargetRejectId(null);
+        setSelectedLeave(null);
+        loadData();
+      } else {
+        toastError(res.message);
+      }
+    } catch {
+      toastError('Failed to reject leave.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const filteredLeaves = leaves.filter((l) => {
+    if (statusFilter === 'all') return true;
+    return l.status === statusFilter;
+  });
+
+  return (
+    <AppLayout showRightPanel={false}>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                Leave Request Management
+              </h1>
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                Admin Review Center
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">
+              Review employee applications, approve/reject requests, and control <strong>Show on Calendar (ON/OFF)</strong> visibility.
+            </p>
+          </div>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-subtle">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-slate-500">Status View:</span>
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+              {[
+                { key: 'pending', label: 'Pending Approvals' },
+                { key: 'approved', label: 'Approved' },
+                { key: 'rejected', label: 'Rejected' },
+                { key: 'all', label: 'All History' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`px-3 py-1 rounded-lg capitalize transition-all ${
+                    statusFilter === tab.key
+                      ? 'bg-white text-blue-700 shadow-sm font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <span className="text-xs font-bold text-slate-500">
+            {filteredLeaves.length} {filteredLeaves.length === 1 ? 'Application' : 'Applications'}
+          </span>
+        </div>
+
+        {/* Requests Table */}
+        <Card className="border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            {filteredLeaves.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 text-xs">
+                No leave requests found for the selected status filter.
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                    <th className="py-3.5 px-4 sm:px-6">Employee</th>
+                    <th className="py-3.5 px-4 sm:px-6">Leave Type</th>
+                    <th className="py-3.5 px-4 sm:px-6">Dates & Days</th>
+                    <th className="py-3.5 px-4 sm:px-6">Reason (Admin View)</th>
+                    <th className="py-3.5 px-4 sm:px-6">Status</th>
+                    <th className="py-3.5 px-4 sm:px-6 text-center">Show on Calendar</th>
+                    <th className="py-3.5 px-4 sm:px-6 text-right">Approval Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredLeaves.map((leave) => {
+                    const days = calculateDaysCount(leave.start_date, leave.end_date);
+                    return (
+                      <tr key={leave.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-4 px-4 sm:px-6 font-bold text-slate-900">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                              {leave.user?.full_name ? leave.user.full_name[0] : 'U'}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900">{leave.user?.full_name}</p>
+                              <p className="text-[10px] text-slate-400 font-normal">
+                                {leave.user?.department} • {leave.user?.role}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-4 sm:px-6 font-semibold text-slate-800">
+                          {leave.leave_type}
+                        </td>
+
+                        <td className="py-4 px-4 sm:px-6 text-slate-700">
+                          <p className="font-semibold">{formatDateRange(leave.start_date, leave.end_date)}</p>
+                          <span className="text-[10px] text-slate-400">
+                            {days} {days === 1 ? 'Day' : 'Days'}
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-4 sm:px-6 max-w-xs text-slate-700">
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate font-medium" title={leave.reason}>
+                              {leave.reason}
+                            </p>
+                            <button
+                              onClick={() => setSelectedLeave(leave)}
+                              className="text-blue-600 hover:text-blue-800 p-1 flex-shrink-0"
+                              title="Inspect Full Reason"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+
+                        <td className="py-4 px-4 sm:px-6">
+                          <StatusBadge status={leave.status} />
+                        </td>
+
+                        {/* SHOW ON CALENDAR TOGGLE */}
+                        <td className="py-4 px-4 sm:px-6 text-center">
+                          {leave.status === 'approved' ? (
+                            <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleVisibility(leave.id, false)}
+                                disabled={isProcessing || !leave.show_on_calendar}
+                                className={`px-2 py-0.5 text-[11px] font-bold rounded-lg transition-all ${
+                                  !leave.show_on_calendar
+                                    ? 'bg-slate-700 text-white shadow-sm'
+                                    : 'text-slate-600 hover:bg-slate-200'
+                                }`}
+                              >
+                                OFF
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleVisibility(leave.id, true)}
+                                disabled={isProcessing || leave.show_on_calendar}
+                                className={`px-2 py-0.5 text-[11px] font-bold rounded-lg transition-all ${
+                                  leave.show_on_calendar
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-600 hover:bg-slate-200'
+                                }`}
+                              >
+                                ON
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-semibold italic">
+                              Off (Pending)
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-4 sm:px-6 text-right">
+                          {leave.status === 'pending' ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={() => handleOpenReject(leave.id)}
+                              >
+                                Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                isLoading={isProcessing}
+                                onClick={() => handleApprove(leave.id, leave.user?.full_name || 'Employee', false)}
+                                title="Approve but keep hidden from shared calendar"
+                              >
+                                Approve (Hidden)
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="success"
+                                isLoading={isProcessing}
+                                onClick={() => handleApprove(leave.id, leave.user?.full_name || 'Employee', true)}
+                                title="Approve and mark visible on shared calendar"
+                              >
+                                Approve + Show
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">
+                              Processed ({leave.status})
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Reject Reason Modal */}
+      <Modal
+        isOpen={rejectModalOpen}
+        onClose={() => setRejectModalOpen(false)}
+        title="Reject Leave Request"
+        subtitle="Provide a reason for the employee"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Rejection Reason
+            </label>
+            <input
+              type="text"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Critical release sprint..."
+              className="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:border-red-500 outline-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setRejectModalOpen(false)}>
+              Back
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              isLoading={isProcessing}
+              onClick={handleConfirmReject}
+            >
+              Confirm Rejection
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Inspect Leave Details Modal */}
+      {selectedLeave && (
+        <Modal
+          isOpen={Boolean(selectedLeave)}
+          onClose={() => setSelectedLeave(null)}
+          title="Leave Application Details"
+          subtitle={`Submitted by ${selectedLeave.user?.full_name}`}
+          maxWidth="md"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm text-slate-900">{selectedLeave.user?.full_name}</p>
+                <p className="text-slate-500">{selectedLeave.user?.email}</p>
+              </div>
+              <StatusBadge status={selectedLeave.status} size="md" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-white border border-slate-200">
+              <div>
+                <span className="text-slate-400 font-medium">Leave Type:</span>
+                <p className="font-bold text-slate-900 mt-0.5">{selectedLeave.leave_type}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Date Range:</span>
+                <p className="font-bold text-slate-900 mt-0.5">
+                  {formatDateRange(selectedLeave.start_date, selectedLeave.end_date)}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <span className="font-semibold text-slate-700 uppercase tracking-wider block mb-1">
+                Full Confidential Reason:
+              </span>
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 leading-relaxed text-slate-800">
+                {selectedLeave.reason}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              {selectedLeave.status === 'pending' && (
+                <>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleOpenReject(selectedLeave.id)}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    isLoading={isProcessing}
+                    onClick={() =>
+                      handleApprove(selectedLeave.id, selectedLeave.user?.full_name || 'Employee', false)
+                    }
+                  >
+                    Approve (Hidden)
+                  </Button>
+                  <Button
+                    variant="success"
+                    size="sm"
+                    isLoading={isProcessing}
+                    onClick={() =>
+                      handleApprove(selectedLeave.id, selectedLeave.user?.full_name || 'Employee', true)
+                    }
+                  >
+                    Approve + Show on Calendar
+                  </Button>
+                </>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setSelectedLeave(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </AppLayout>
+  );
+}
