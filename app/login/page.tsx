@@ -20,6 +20,12 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
+  // Guarantee fields start completely empty on every mount/refresh
+  React.useEffect(() => {
+    setEmail('');
+    setPassword('');
+  }, []);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -76,10 +82,16 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSignIn} className="space-y-4">
+          <form onSubmit={handleSignIn} className="space-y-4" autoComplete="off">
             <Input
               label="Work Email Address"
               type="email"
+              name="officeflow_login_email"
+              id="officeflow-work-email"
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               placeholder="name@dwellvise.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -90,6 +102,9 @@ export default function LoginPage() {
             <Input
               label="Password"
               type="password"
+              name="officeflow_login_password"
+              id="officeflow-work-password"
+              autoComplete="new-password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -101,7 +116,6 @@ export default function LoginPage() {
               <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
                 <input
                   type="checkbox"
-                  defaultChecked
                   className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
                 />
                 <span className="text-[11px] sm:text-xs">Remember device</span>
