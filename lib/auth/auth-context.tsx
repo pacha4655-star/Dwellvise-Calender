@@ -10,9 +10,11 @@ interface AuthContextType {
   usersList: UserProfile[];
   isAdmin: boolean;
   isLoading: boolean;
+  authError: string | null;
   login: (email: string, password?: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   switchUser: (userId: string) => void;
+  retryAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,30 +25,95 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  const loadCurrentUser = () => {
-    initializeStore();
-    const currentUsers = getUsers();
-    setUsersList(currentUsers);
+  const loadCurrentUser = async () => {
+    setIsLoading(true);
+    setAuthError(null);
 
-    const savedUserId = typeof window !== 'undefined' ? localStorage.getItem(AUTH_STORAGE_KEY) : null;
-    if (savedUserId) {
-      const found = currentUsers.find((u) => u.id === savedUserId);
-      if (found && found.is_active) {
-        setUser(found);
-        setIsLoading(false);
-        return;
+    try {
+      initializeStore();
+      const currentUsers = getUsers();
+      setUsersList(currentUsers);
+
+      // Check Supabase session if configured with timeout
+      if (isSupabaseConfigured() && supabase) {
+        try {
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null }, error: null }), 2000)
+          );
+
+          const { data } = await Promise.race([sessionPromise, timeoutPromise]);
+          if (data?.session?.user?.email) {
+            const matched = currentUsers.find(
+              (u) => u.email.toLowerCase() === data.session.user.email?.toLowerCase()
+            );
+            if (matched && matched.is_active) {
+              setUser(matched);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
+              }
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (supabaseErr) {
+          console.warn('Supabase session check error:', supabaseErr);
+        }
       }
-    }
 
-    // Unauthenticated: No default fallback
-    setUser(null);
-    setIsLoading(false);
+      // Check local storage saved session
+      const savedUserId = typeof window !== 'undefined' ? localStorage.getItem(AUTH_STORAGE_KEY) : null;
+      if (savedUserId) {
+        const found = currentUsers.find((u) => u.id === savedUserId);
+        if (found && found.is_active) {
+          setUser(found);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Unauthenticated: No default fallback
+      setUser(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error loading authentication session';
+      setAuthError(msg);
+      console.warn('Auth loading caught error:', msg);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
     loadCurrentUser();
-    const unsubscribe = subscribeToStore(() => {
+
+    // Listen to Supabase auth state if configured
+    let authSubscription: { unsubscribe: () => void } | null = null;
+    if (isSupabaseConfigured() && supabase) {
+      try {
+        const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+          if (session?.user?.email) {
+            const currentUsers = getUsers();
+            const matched = currentUsers.find(
+              (u) => u.email.toLowerCase() === session.user.email?.toLowerCase()
+            );
+            if (matched && matched.is_active) {
+              setUser(matched);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
+              }
+            }
+          }
+        });
+        authSubscription = authListener.subscription;
+      } catch (err) {
+        console.warn('Supabase onAuthStateChange error:', err);
+      }
+    }
+
+    const unsubscribeStore = subscribeToStore(() => {
       const updated = getUsers();
       setUsersList(updated);
       setUser((prevUser) => {
@@ -55,7 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return refreshed || prevUser;
       });
     });
-    return unsubscribe;
+
+    return () => {
+      authSubscription?.unsubscribe();
+      unsubscribeStore();
+    };
   }, []);
 
   const login = async (email: string, _password?: string): Promise<{ success: boolean; message: string }> => {
@@ -130,9 +201,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         usersList,
         isAdmin: user?.role === 'admin',
         isLoading,
+        authError,
         login,
         logout,
         switchUser,
+        retryAuth: loadCurrentUser,
       }}
     >
       {children}

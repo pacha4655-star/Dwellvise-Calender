@@ -10,7 +10,8 @@ import { CalendarEvent } from '@/types';
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, LogIn } from 'lucide-react';
+import Link from 'next/link';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -26,15 +27,23 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onSearchChange,
 }) => {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, authError, retryAuth } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [layoutTimeout, setLayoutTimeout] = useState(false);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setLayoutTimeout(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   React.useEffect(() => {
     if (!isLoading && !user) {
-      router.push('/login');
+      router.replace('/login');
     }
   }, [user, isLoading, router]);
 
@@ -44,11 +53,49 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   };
 
   if (isLoading) {
+    if (!layoutTimeout) {
+      return (
+        <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+          <div className="flex items-center gap-3 text-blue-600 font-semibold text-sm">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Loading OfficeFlow Workspace...</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
-        <div className="flex items-center gap-3 text-blue-600 font-semibold text-sm">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Loading OfficeFlow Workspace...</span>
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
+        <div className="max-w-md w-full p-6 bg-white rounded-2xl border border-slate-200/80 shadow-elevation text-center space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-bold text-slate-900">
+            Workspace session loading
+          </h2>
+          <p className="text-xs text-slate-500">
+            {authError || 'Taking longer than usual to connect. You can re-authenticate or retry.'}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2 justify-center">
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-xs shadow-sm hover:bg-blue-700 transition-all"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Go to Login</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setLayoutTimeout(false);
+                retryAuth();
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-all"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry Connection</span>
+            </button>
+          </div>
         </div>
       </div>
     );

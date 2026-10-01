@@ -49,6 +49,116 @@ function notifyListeners() {
   listeners.forEach((listener) => listener());
 }
 
+let isSyncing = false;
+let syncError: string | null = null;
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), timeoutMs);
+  });
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timer);
+      return res;
+    }),
+    timeoutPromise,
+  ]);
+};
+
+async function safeFetchProfiles(): Promise<UserProfile[] | null> {
+  if (!supabase) return null;
+  try {
+    const res = await supabase.from('profiles').select('*');
+    return (res.data as UserProfile[]) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function safeFetchLeaves(): Promise<LeaveRequest[] | null> {
+  if (!supabase) return null;
+  try {
+    const res = await supabase.from('leave_requests').select('*');
+    return (res.data as LeaveRequest[]) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function safeFetchHolidays(): Promise<GovernmentHoliday[] | null> {
+  if (!supabase) return null;
+  try {
+    const res = await supabase.from('holidays').select('*');
+    return (res.data as GovernmentHoliday[]) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function safeFetchMentions(): Promise<ManualCalendarEvent[] | null> {
+  if (!supabase) return null;
+  try {
+    const res = await supabase.from('calendar_events').select('*');
+    return (res.data as ManualCalendarEvent[]) || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured() || !supabase || isSyncing) {
+    return { success: false, error: 'Supabase not configured or already syncing' };
+  }
+
+  isSyncing = true;
+  syncError = null;
+
+  try {
+    const [profilesData, leavesData, holidaysData, mentionsData] = await Promise.all([
+      withTimeout(safeFetchProfiles(), 4000, null),
+      withTimeout(safeFetchLeaves(), 4000, null),
+      withTimeout(safeFetchHolidays(), 4000, null),
+      withTimeout(safeFetchMentions(), 4000, null),
+    ]);
+
+    let hasUpdates = false;
+
+    if (profilesData && profilesData.length > 0) {
+      memoryUsers = profilesData;
+      hasUpdates = true;
+    }
+
+    if (leavesData) {
+      memoryLeaves = leavesData;
+      hasUpdates = true;
+    }
+
+    if (holidaysData && holidaysData.length > 0) {
+      memoryHolidays = holidaysData;
+      hasUpdates = true;
+    }
+
+    if (mentionsData) {
+      memoryMentions = mentionsData;
+      hasUpdates = true;
+    }
+
+    if (hasUpdates) {
+      persistStore();
+    }
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Failed to sync with Supabase';
+    syncError = msg;
+    console.warn('Supabase synchronization warning:', msg);
+    return { success: false, error: msg };
+  } finally {
+    isSyncing = false;
+  }
+}
+
 /**
  * Initialize data store from localStorage if running in browser
  */
@@ -91,6 +201,11 @@ export function initializeStore() {
   } catch (err) {
     console.warn('Error reading from localStorage:', err);
   }
+
+  // Trigger background sync if Supabase is active
+  if (isSupabaseConfigured()) {
+    syncDatabaseWithSupabase().catch(() => {});
+  }
 }
 
 function persistStore() {
@@ -112,6 +227,10 @@ export function subscribeToStore(listener: Listener): () => void {
   return () => {
     listeners.delete(listener);
   };
+}
+
+export function getSyncStatus() {
+  return { isSyncing, syncError };
 }
 
 // ==============================================================================

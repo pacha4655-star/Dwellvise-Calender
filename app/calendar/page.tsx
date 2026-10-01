@@ -3,24 +3,9 @@
 import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { OfficeCalendar } from '@/components/calendar/OfficeCalendar';
-import { useAuth } from '@/lib/auth/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function CalendarPage() {
-  const { user, isLoading } = useAuth();
-  const router = useRouter();
   const [globalSearch, setGlobalSearch] = useState('');
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, isLoading, router]);
-
-  if (isLoading || !user) {
-    return null;
-  }
 
   return (
     <AppLayout
