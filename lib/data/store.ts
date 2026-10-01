@@ -732,6 +732,14 @@ export async function updateMention(
     updated_at: new Date().toISOString(),
   };
 
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('calendar_events').update(updated).eq('id', id);
+    } catch (err) {
+      console.warn('Supabase mention update sync:', err);
+    }
+  }
+
   persistStore();
   return { success: true, message: 'Calendar mention updated successfully.' };
 }
@@ -743,6 +751,15 @@ export async function deleteMention(id: string): Promise<{ success: boolean; mes
   }
 
   memoryMentions = memoryMentions.filter((m) => m.id !== id);
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('calendar_events').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase mention delete sync:', err);
+    }
+  }
+
   persistStore();
   return { success: true, message: 'Calendar mention deleted successfully.' };
 }
@@ -796,6 +813,14 @@ export async function updateHoliday(
     updated_at: new Date().toISOString(),
   };
 
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('holidays').update(updated).eq('id', id);
+    } catch (err) {
+      console.warn('Supabase holiday update sync:', err);
+    }
+  }
+
   persistStore();
   return { success: true, message: 'Holiday updated successfully.' };
 }
@@ -807,6 +832,15 @@ export async function deleteHoliday(id: string): Promise<{ success: boolean; mes
   }
 
   memoryHolidays = memoryHolidays.filter((h) => h.id !== id);
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('holidays').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Supabase holiday delete sync:', err);
+    }
+  }
+
   persistStore();
   return { success: true, message: 'Holiday deleted successfully.' };
 }
@@ -833,6 +867,15 @@ export async function addEmployee(employee: Omit<UserProfile, 'id'>): Promise<{ 
   };
 
   memoryUsers = [...memoryUsers, newEmp];
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('profiles').insert(newEmp);
+    } catch (err) {
+      console.warn('Supabase profile insert sync:', err);
+    }
+  }
+
   persistStore();
   return { success: true, message: 'Employee added successfully.', user: newEmp };
 }
@@ -848,6 +891,14 @@ export async function updateEmployee(id: string, updated: Partial<UserProfile>):
     ...updated,
     updated_at: new Date().toISOString(),
   };
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('profiles').update(updated).eq('id', id);
+    } catch (err) {
+      console.warn('Supabase profile update sync:', err);
+    }
+  }
 
   persistStore();
   return { success: true, message: 'Employee details updated successfully.' };
@@ -866,6 +917,14 @@ export async function toggleEmployeeStatus(id: string): Promise<{ success: boole
     is_active: newStatus,
     updated_at: new Date().toISOString(),
   };
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('profiles').update({ is_active: newStatus }).eq('id', id);
+    } catch (err) {
+      console.warn('Supabase profile status sync:', err);
+    }
+  }
 
   persistStore();
   return {
