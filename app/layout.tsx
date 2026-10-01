@@ -22,7 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="min-h-screen font-sans bg-[#F8FAFC] text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+      <body className="min-h-dvh bg-[#F8FAFC] text-slate-900 selection:bg-blue-100 selection:text-blue-900">
         <ToastProvider>
           <AuthProvider>{children}</AuthProvider>
         </ToastProvider>

@@ -66,8 +66,8 @@ export const Modal: React.FC<ModalProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 bg-slate-50/50">
             <div className="min-w-0 pr-2">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-900 truncate">{title}</h3>
-              {subtitle && <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 truncate">{subtitle}</p>}
+              <h3 className="text-base sm:text-lg font-semibold text-slate-900 break-words leading-tight">{title}</h3>
+              {subtitle && <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 break-words">{subtitle}</p>}
             </div>
             <button
               onClick={onClose}
@@ -79,7 +79,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
 
           {/* Body */}
-          <div className="px-4 sm:px-6 py-4 sm:py-5 max-h-[82vh] overflow-y-auto">{children}</div>
+          <div className="px-4 sm:px-6 py-4 sm:py-5 max-h-[85dvh] overflow-y-auto">{children}</div>
         </div>
       </div>
     </div>
