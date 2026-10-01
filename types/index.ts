@@ -131,14 +131,29 @@ export interface CalendarFilter {
   showMentions: boolean;
 }
 
+export type NotificationType =
+  | 'leave_request'
+  | 'leave_approved'
+  | 'leave_rejected'
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error';
+
 export interface AppNotification {
   id: string;
-  userId: string;
+  recipient_id: string;
+  sender_id?: string | null;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  isRead: boolean;
-  createdAt: string;
+  type: NotificationType;
+  reference_id?: string | null;
+  is_read: boolean;
+  created_at: string;
+  // Compatibility fields
+  userId?: string;
+  isRead?: boolean;
+  createdAt?: string;
   link?: string;
 }
 

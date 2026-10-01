@@ -42,6 +42,7 @@ export default function AdminLeaveRequestsPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [targetRejectId, setTargetRejectId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const loadData = () => {
     setLeaves(getLeaves());
@@ -50,6 +51,21 @@ export default function AdminLeaveRequestsPage() {
   useEffect(() => {
     loadData();
     const unsub = subscribeToStore(loadData);
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const targetId = params.get('id');
+      if (targetId) {
+        setHighlightedId(targetId);
+        const allLeaves = getLeaves();
+        const target = allLeaves.find((l) => l.id === targetId);
+        if (target) {
+          setStatusFilter('all');
+          setSelectedLeave(target);
+        }
+      }
+    }
+
     return unsub;
   }, []);
 
@@ -196,8 +212,16 @@ export default function AdminLeaveRequestsPage() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredLeaves.map((leave) => {
                     const days = calculateDaysCount(leave.start_date, leave.end_date);
+                    const isHighlighted = leave.id === highlightedId;
                     return (
-                      <tr key={leave.id} className="hover:bg-slate-50/70 transition-colors">
+                      <tr
+                        key={leave.id}
+                        className={`transition-colors ${
+                          isHighlighted
+                            ? 'bg-blue-50/90 ring-2 ring-blue-500/30 font-medium'
+                            : 'hover:bg-slate-50/70'
+                        }`}
+                      >
                         <td className="py-4 px-4 sm:px-6 font-bold text-slate-900">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
@@ -330,10 +354,15 @@ export default function AdminLeaveRequestsPage() {
             ) : (
               filteredLeaves.map((leave) => {
                 const days = calculateDaysCount(leave.start_date, leave.end_date);
+                const isHighlighted = leave.id === highlightedId;
                 return (
                   <div
                     key={leave.id}
-                    className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-3 shadow-subtle"
+                    className={`p-3.5 rounded-xl border space-y-3 shadow-subtle transition-all ${
+                      isHighlighted
+                        ? 'bg-blue-50/90 border-blue-300 ring-2 ring-blue-500/20'
+                        : 'bg-white border-slate-200'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">

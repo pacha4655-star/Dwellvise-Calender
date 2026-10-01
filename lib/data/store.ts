@@ -95,6 +95,19 @@ async function safeFetchMentions(): Promise<ManualCalendarEvent[] | null> {
   }
 }
 
+async function safeFetchNotifications(): Promise<AppNotification[] | null> {
+  if (!supabase) return null;
+  try {
+    const res = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false });
+    return (res.data as AppNotification[]) || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured() || !supabase || isSyncing) {
     return { success: false, error: 'Supabase not configured or already syncing' };
@@ -104,11 +117,12 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
   syncError = null;
 
   try {
-    const [profilesData, leavesData, holidaysData, mentionsData] = await Promise.all([
+    const [profilesData, leavesData, holidaysData, mentionsData, notifsData] = await Promise.all([
       withTimeout(safeFetchProfiles(), 4000, null),
       withTimeout(safeFetchLeaves(), 4000, null),
       withTimeout(safeFetchHolidays(), 4000, null),
       withTimeout(safeFetchMentions(), 4000, null),
+      withTimeout(safeFetchNotifications(), 4000, null),
     ]);
 
     let hasUpdates = false;
@@ -133,6 +147,11 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
       hasUpdates = true;
     }
 
+    if (notifsData) {
+      memoryNotifications = notifsData;
+      hasUpdates = true;
+    }
+
     if (hasUpdates) {
       persistStore();
     }
@@ -145,6 +164,34 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
     return { success: false, error: msg };
   } finally {
     isSyncing = false;
+  }
+}
+
+let realtimeSubscribed = false;
+
+export function initRealtimeNotifications() {
+  if (typeof window === 'undefined' || !isSupabaseConfigured() || !supabase || realtimeSubscribed) {
+    return;
+  }
+  try {
+    realtimeSubscribed = true;
+    supabase
+      .channel('public:notifications')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        () => {
+          safeFetchNotifications().then((data) => {
+            if (data) {
+              memoryNotifications = data;
+              persistStore();
+            }
+          }).catch(() => {});
+        }
+      )
+      .subscribe();
+  } catch (err) {
+    console.warn('Realtime subscription warning:', err);
   }
 }
 
@@ -191,9 +238,10 @@ export function initializeStore() {
     console.warn('Error reading from localStorage:', err);
   }
 
-  // Trigger background sync if Supabase is active
+  // Trigger background sync and realtime if Supabase is active
   if (isSupabaseConfigured()) {
     syncDatabaseWithSupabase().catch(() => {});
+    initRealtimeNotifications();
   }
 }
 
@@ -265,10 +313,101 @@ export function getMentions(): ManualCalendarEvent[] {
     .sort((a, b) => a.start_date.localeCompare(b.start_date));
 }
 
-export function getNotifications(userId: string): AppNotification[] {
+export function getNotifications(recipientId: string): AppNotification[] {
   return memoryNotifications
-    .filter((n) => n.userId === userId || n.userId === 'all')
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .filter((n) => n.recipient_id === recipientId || n.userId === recipientId || n.userId === 'all')
+    .sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+}
+
+export async function markNotificationAsRead(id: string): Promise<{ success: boolean; message: string }> {
+  const index = memoryNotifications.findIndex((n) => n.id === id);
+  if (index !== -1) {
+    memoryNotifications[index] = {
+      ...memoryNotifications[index],
+      is_read: true,
+      isRead: true,
+    };
+    persistStore();
+  }
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    } catch (err) {
+      console.warn('Supabase mark notification read sync:', err);
+    }
+  }
+
+  return { success: true, message: 'Notification marked as read.' };
+}
+
+export async function markAllNotificationsAsRead(recipientId: string): Promise<{ success: boolean; message: string }> {
+  memoryNotifications = memoryNotifications.map((n) => {
+    if (n.recipient_id === recipientId || n.userId === recipientId || n.userId === 'all') {
+      return { ...n, is_read: true, isRead: true };
+    }
+    return n;
+  });
+  persistStore();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('recipient_id', recipientId);
+    } catch (err) {
+      console.warn('Supabase mark all notifications read sync:', err);
+    }
+  }
+
+  return { success: true, message: 'All notifications marked as read.' };
+}
+
+export async function createNotification(payload: {
+  recipient_id: string;
+  sender_id?: string | null;
+  title: string;
+  message: string;
+  type: any;
+  reference_id?: string | null;
+}): Promise<AppNotification> {
+  const newNotif: AppNotification = {
+    id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    recipient_id: payload.recipient_id,
+    sender_id: payload.sender_id || null,
+    title: payload.title,
+    message: payload.message,
+    type: payload.type,
+    reference_id: payload.reference_id || null,
+    is_read: false,
+    created_at: new Date().toISOString(),
+    // Aliases
+    userId: payload.recipient_id,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  memoryNotifications = [newNotif, ...memoryNotifications];
+  persistStore();
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      await supabase.from('notifications').insert({
+        recipient_id: payload.recipient_id,
+        sender_id: payload.sender_id || null,
+        title: payload.title,
+        message: payload.message,
+        type: payload.type,
+        reference_id: payload.reference_id || null,
+        is_read: false,
+      });
+    } catch (err) {
+      console.warn('Supabase notification insert sync:', err);
+    }
+  }
+
+  return newNotif;
 }
 
 // ==============================================================================
@@ -455,25 +594,28 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
 
   memoryLeaves = [newLeave, ...memoryLeaves];
 
-  // Notify Admins
-  const adminUsers = memoryUsers.filter((u) => u.role === 'admin');
-  adminUsers.forEach((admin) => {
-    const notif: AppNotification = {
-      id: `notif-${Date.now()}-${admin.id}`,
-      userId: admin.id,
+  // Format date range string for notifications (e.g. "05 Oct 2026 - 06 Oct 2026")
+  const dateRangeStr = startDate === endDate
+    ? formatDisplayDate(startDate)
+    : `${formatDisplayDate(startDate)} - ${formatDisplayDate(endDate)}`;
+
+  // Notify ALL active Admins about new leave request
+  const activeAdmins = memoryUsers.filter((u) => u.role === 'admin' && u.is_active);
+  for (const admin of activeAdmins) {
+    createNotification({
+      recipient_id: admin.id,
+      sender_id: user.id,
       title: 'New Leave Request',
-      message: `${user.full_name} applied for ${leaveType} (${formatDisplayDate(startDate)} → ${formatDisplayDate(endDate)}).`,
-      type: 'info',
-      isRead: false,
-      createdAt: new Date().toISOString(),
-      link: '/admin/leave-requests',
-    };
-    memoryNotifications = [notif, ...memoryNotifications];
-  });
+      message: `${user.full_name} submitted a leave request for ${dateRangeStr}.`,
+      type: 'leave_request',
+      reference_id: newLeave.id,
+    }).catch((err) => console.warn('Admin notification error:', err));
+  }
 
   if (isSupabaseConfigured() && supabase) {
     try {
       await supabase.from('leave_requests').insert({
+        id: newLeave.id,
         user_id: userId,
         leave_type: leaveType,
         start_date: startDate,
@@ -490,7 +632,7 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
   persistStore();
   return {
     success: true,
-    message: 'Leave request submitted successfully. Awaiting manager review.',
+    message: 'Leave request submitted successfully.',
     leave: newLeave,
   };
 }
@@ -517,20 +659,20 @@ export async function approveLeave(
     updated_at: new Date().toISOString(),
   };
 
-  // Notify Employee
-  const empNotif: AppNotification = {
-    id: `notif-${Date.now()}-${leave.user_id}`,
-    userId: leave.user_id,
-    title: 'Leave Approved! 🎉',
-    message: `Your ${leave.leave_type} request for ${formatDisplayDate(leave.start_date)} was approved by ${admin?.full_name || 'Manager'}.${
-      showOnCalendar ? ' Visible on shared calendar.' : ' Kept private from shared calendar.'
-    }`,
-    type: 'success',
-    isRead: false,
-    createdAt: new Date().toISOString(),
-    link: '/my-leaves',
-  };
-  memoryNotifications = [empNotif, ...memoryNotifications];
+  // Format date range for notification
+  const dateRangeStr = leave.start_date === leave.end_date
+    ? formatDisplayDate(leave.start_date)
+    : `${formatDisplayDate(leave.start_date)} - ${formatDisplayDate(leave.end_date)}`;
+
+  // Notify Employee about approval
+  createNotification({
+    recipient_id: leave.user_id,
+    sender_id: adminUserId,
+    title: 'Leave Approved',
+    message: `Your leave request for ${dateRangeStr} has been approved.`,
+    type: 'leave_approved',
+    reference_id: leave.id,
+  }).catch((err) => console.warn('Employee approve notification error:', err));
 
   if (isSupabaseConfigured() && supabase) {
     try {
@@ -611,17 +753,20 @@ export async function rejectLeave(
     updated_at: new Date().toISOString(),
   };
 
-  const empNotif: AppNotification = {
-    id: `notif-${Date.now()}-${leave.user_id}`,
-    userId: leave.user_id,
-    title: 'Leave Request Rejected',
-    message: `Your ${leave.leave_type} request for ${formatDisplayDate(leave.start_date)} was rejected by ${admin?.full_name || 'Manager'}. Reason: ${rejectionReason || 'Operational requirements'}.`,
-    type: 'error',
-    isRead: false,
-    createdAt: new Date().toISOString(),
-    link: '/my-leaves',
-  };
-  memoryNotifications = [empNotif, ...memoryNotifications];
+  // Format date range for notification
+  const dateRangeStr = leave.start_date === leave.end_date
+    ? formatDisplayDate(leave.start_date)
+    : `${formatDisplayDate(leave.start_date)} - ${formatDisplayDate(leave.end_date)}`;
+
+  // Notify Employee about rejection (WITHOUT private reason in notification)
+  createNotification({
+    recipient_id: leave.user_id,
+    sender_id: adminUserId,
+    title: 'Leave Rejected',
+    message: `Your leave request for ${dateRangeStr} has been rejected.`,
+    type: 'leave_rejected',
+    reference_id: leave.id,
+  }).catch((err) => console.warn('Employee reject notification error:', err));
 
   if (isSupabaseConfigured() && supabase) {
     try {

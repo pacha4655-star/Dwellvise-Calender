@@ -85,6 +85,19 @@ CREATE TABLE IF NOT EXISTS public.leave_balances (
   UNIQUE (user_id, year)
 );
 
+-- 6. Notifications Table
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  recipient_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  sender_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('leave_request', 'leave_approved', 'leave_rejected', 'info', 'success', 'warning', 'error')),
+  reference_id UUID NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
 -- ==============================================================================
 -- INDEXES
 -- ==============================================================================
@@ -96,6 +109,9 @@ CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON public.leave_requests(st
 CREATE INDEX IF NOT EXISTS idx_leave_requests_visibility ON public.leave_requests(show_on_calendar);
 CREATE INDEX IF NOT EXISTS idx_holidays_date ON public.holidays(date);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_dates ON public.calendar_events(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_id ON public.notifications(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON public.notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at);
 
 -- ==============================================================================
 -- SHARED CALENDAR VIEW (ENFORCING APPROVED + SHOW_ON_CALENDAR = TRUE)
@@ -132,6 +148,7 @@ ALTER TABLE public.leave_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.holidays ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leave_balances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
 CREATE POLICY "Public profiles are viewable by authenticated users"
@@ -179,4 +196,21 @@ CREATE POLICY "Users can cancel their own pending leave requests"
 
 CREATE POLICY "Admins can update, approve/reject, and toggle show_on_calendar for all leave requests"
   ON public.leave_requests FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin'));
+
+-- Notifications Policies
+CREATE POLICY "Users can view their own notifications"
+  ON public.notifications FOR SELECT TO authenticated
+  USING (recipient_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()));
+
+CREATE POLICY "Users can update their own notifications"
+  ON public.notifications FOR UPDATE TO authenticated
+  USING (recipient_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()));
+
+CREATE POLICY "Authenticated users can create notifications"
+  ON public.notifications FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Admins can manage all notifications"
+  ON public.notifications FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin'));

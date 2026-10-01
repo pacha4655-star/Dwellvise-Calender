@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -16,10 +16,20 @@ import {
   Menu,
   X,
   Sparkles,
+  CheckCheck,
+  Clock,
+  XCircle,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { getNotifications, getLeaves, getHolidays } from '@/lib/data/store';
-import { formatDisplayDate } from '@/lib/utils/date-utils';
+import {
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  subscribeToStore,
+} from '@/lib/data/store';
+import { AppNotification } from '@/types';
+import { formatRelativeTime } from '@/lib/utils/date-utils';
 
 interface NavbarProps {
   onMobileMenuToggle?: () => void;
@@ -40,13 +50,27 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isSwitchOpen, setIsSwitchOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const switchRef = useRef<HTMLDivElement>(null);
 
-  const notifications = user ? getNotifications(user.id) : [];
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const reloadNotifications = useCallback(() => {
+    if (user) {
+      setNotifications(getNotifications(user.id));
+    } else {
+      setNotifications([]);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    reloadNotifications();
+    const unsubscribe = subscribeToStore(reloadNotifications);
+    return unsubscribe;
+  }, [reloadNotifications]);
+
+  const unreadCount = notifications.filter((n) => !n.is_read && !n.isRead).length;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -67,6 +91,46 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleLogout = () => {
     logout();
     router.push('/login');
+  };
+
+  const handleNotificationClick = async (notif: AppNotification) => {
+    if (!notif.is_read && !notif.isRead) {
+      await markNotificationAsRead(notif.id);
+      reloadNotifications();
+    }
+    setIsNotifOpen(false);
+
+    if (notif.type === 'leave_request') {
+      if (isAdmin) {
+        router.push(`/admin/leave-requests${notif.reference_id ? `?id=${notif.reference_id}` : ''}`);
+      } else {
+        router.push('/my-leaves');
+      }
+    } else if (notif.type === 'leave_approved' || notif.type === 'leave_rejected') {
+      router.push('/my-leaves');
+    } else if (notif.link) {
+      router.push(notif.link);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (user) {
+      await markAllNotificationsAsRead(user.id);
+      reloadNotifications();
+    }
+  };
+
+  const getNotifIcon = (type: string) => {
+    switch (type) {
+      case 'leave_request':
+        return <Clock className="w-4 h-4 text-blue-600" />;
+      case 'leave_approved':
+        return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
+      case 'leave_rejected':
+        return <XCircle className="w-4 h-4 text-red-600" />;
+      default:
+        return <Bell className="w-4 h-4 text-slate-600" />;
+    }
   };
 
   return (
@@ -115,7 +179,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Right: Quick Switcher + Notifications + Profile */}
-        <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
           {/* Quick User Switcher for Interactive Evaluation */}
           <div className="relative" ref={switchRef}>
             <button
@@ -168,53 +232,95 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Notifications Dropdown */}
+          {/* Notifications Bell & Dropdown */}
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className="relative p-1.5 sm:p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+              className="relative p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center justify-center"
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-600 ring-2 ring-white" />
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white shadow-sm animate-pulse">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
               )}
             </button>
 
             {isNotifOpen && (
-              <div className="absolute right-[-45px] sm:right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-80 md:w-96 max-w-sm rounded-2xl bg-white border border-slate-200 shadow-elevation p-3 z-50">
+              <div className="absolute right-[-40px] sm:right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-80 md:w-96 max-w-sm rounded-2xl bg-white border border-slate-200 shadow-elevation p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
                 <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 mb-2">
-                  <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Notifications
-                  </span>
-                  <span className="text-[11px] text-blue-600 font-medium">
-                    {notifications.length} updates
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Notifications
+                    </span>
+                    {unreadCount > 0 && (
+                      <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={handleMarkAllAsRead}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 transition-colors"
+                    >
+                      <CheckCheck className="w-3.5 h-3.5" />
+                      <span>Mark all as read</span>
+                    </button>
+                  )}
                 </div>
-                <div className="max-h-72 overflow-y-auto space-y-2">
+
+                <div className="max-h-80 overflow-y-auto space-y-2 pr-0.5">
                   {notifications.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-6">No notifications yet</p>
+                    <div className="py-8 text-center">
+                      <Bell className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs font-semibold text-slate-600">No notifications yet</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">You&apos;re all caught up!</p>
+                    </div>
                   ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        className={`p-2.5 rounded-xl border text-xs transition-colors ${
-                          n.type === 'success'
-                            ? 'bg-emerald-50/50 border-emerald-100 text-emerald-900'
-                            : n.type === 'error'
-                            ? 'bg-red-50/50 border-red-100 text-red-900'
-                            : 'bg-slate-50 border-slate-100 text-slate-800'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold">{n.title}</span>
-                          <span className="text-[10px] text-slate-400">
-                            {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                    notifications.map((n) => {
+                      const isUnread = !n.is_read && !n.isRead;
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                            isUnread
+                              ? 'bg-blue-50/70 border-blue-200 text-slate-900 shadow-xs'
+                              : 'bg-white hover:bg-slate-50 border-slate-100 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div className={`p-1.5 rounded-lg flex-shrink-0 ${
+                              n.type === 'leave_approved'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : n.type === 'leave_rejected'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {getNotifIcon(n.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <span className={`truncate text-xs ${isUnread ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}>
+                                  {n.title}
+                                </span>
+                                <span className="text-[10px] text-slate-400 flex-shrink-0">
+                                  {formatRelativeTime(n.created_at || n.createdAt)}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">
+                                {n.message}
+                              </p>
+                            </div>
+                            {isUnread && (
+                              <span className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0 mt-1.5" />
+                            )}
+                          </div>
                         </div>
-                        <p className="text-slate-600 leading-relaxed">{n.message}</p>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
