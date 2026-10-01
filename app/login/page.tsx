@@ -59,22 +59,23 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md mx-auto text-center">
-        {/* Logo */}
-        <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 mb-4">
-          <Calendar className="w-6 h-6" />
+    <div className="min-h-dvh bg-[#F8FAFC] flex flex-col items-center justify-start sm:justify-center p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-md my-auto flex flex-col items-center">
+        {/* Logo & Header */}
+        <div className="w-full text-center mb-5 sm:mb-6 flex-shrink-0">
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 mb-3">
+            <Calendar className="w-6 h-6" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+            OfficeFlow
+          </h1>
+          <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium px-2">
+            Leave & Government Holiday Calendar
+          </p>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-          OfficeFlow
-        </h1>
-        <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium px-2">
-          Leave & Government Holiday Calendar
-        </p>
-      </div>
 
-      <div className="mt-6 sm:mt-8 w-full max-w-md mx-auto">
-        <div className="bg-white py-6 sm:py-8 px-4 sm:px-8 rounded-2xl border border-slate-200/80 shadow-elevation">
+        {/* Login Card */}
+        <div className="w-full bg-white py-6 sm:py-8 px-4 sm:px-8 rounded-2xl border border-slate-200/80 shadow-elevation">
           {errorMsg && (
             <div className="mb-5 flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs">
               <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
@@ -199,7 +200,7 @@ export default function LoginPage() {
         </div>
 
         {/* Security badge footer */}
-        <div className="mt-6 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
+        <div className="mt-5 sm:mt-6 text-center text-xs text-slate-400 flex items-center justify-center gap-1.5 flex-shrink-0">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
           <span>Protected with Row Level Security & Encrypted Auth</span>
         </div>
