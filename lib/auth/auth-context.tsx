@@ -136,15 +136,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check Supabase Auth if configured
     if (isSupabaseConfigured() && supabase) {
       try {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: targetEmail,
-          password: _password || 'password123',
+          password: _password || '',
         });
         if (error) {
-          console.warn('Supabase auth attempt:', error.message);
+          console.error('Supabase sign-in error:', error.message);
+          setIsLoading(false);
+          return {
+            success: false,
+            message: error.message || 'Invalid login credentials',
+          };
         }
-      } catch (err) {
-        console.warn('Supabase auth catch:', err);
+      } catch (err: unknown) {
+        console.error('Supabase auth catch error:', err);
+        setIsLoading(false);
+        const msg = err instanceof Error ? err.message : 'Network error connecting to authentication server';
+        return {
+          success: false,
+          message: msg,
+        };
       }
     }
 
