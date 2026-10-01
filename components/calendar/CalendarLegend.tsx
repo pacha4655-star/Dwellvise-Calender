@@ -25,14 +25,14 @@ export const CalendarLegend: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-2 sm:gap-3 py-2 px-3 bg-white rounded-xl border border-slate-200/80 text-[11px] font-medium text-slate-700 shadow-subtle">
-      <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mr-1">
+    <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 py-2 px-2.5 sm:px-3 bg-white rounded-xl border border-slate-200/80 text-[10px] sm:text-[11px] font-medium text-slate-700 shadow-subtle">
+      <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px] sm:text-[10px] mr-0.5 sm:mr-1">
         Priority Legend:
       </span>
       {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-1.5">
-          <span className={`w-2.5 h-2.5 rounded-full ${item.dot}`} />
-          <span>{item.label}</span>
+        <div key={item.label} className="flex items-center gap-1 sm:gap-1.5">
+          <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full flex-shrink-0 ${item.dot}`} />
+          <span className="leading-tight">{item.label}</span>
         </div>
       ))}
     </div>

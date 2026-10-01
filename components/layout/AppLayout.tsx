@@ -129,7 +129,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-2xl z-50">
+            <div className="fixed inset-y-0 left-0 w-72 max-w-[calc(100vw-3rem)] bg-white shadow-2xl z-50 overflow-y-auto">
               <Sidebar
                 onApplyLeaveClick={() => setIsApplyModalOpen(true)}
                 onCloseMobile={() => setIsMobileMenuOpen(false)}
@@ -139,7 +139,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         )}
 
         {/* Center Main Workspace */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 min-w-0 w-full max-w-full p-3.5 xs:p-4 sm:p-6 lg:p-8">
           {children}
         </main>
 
