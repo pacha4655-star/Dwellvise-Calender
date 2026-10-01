@@ -384,20 +384,20 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     placeholder="Reason for rejection..."
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
-                    className="w-full text-xs p-2 rounded-lg border border-red-200 bg-white"
+                    className="w-full text-xs p-2.5 rounded-lg border border-red-200 bg-white"
                   />
-                  <div className="flex items-center gap-2 justify-end">
-                    <Button size="sm" variant="outline" onClick={() => setRejectPromptOpen(false)}>
+                  <div className="flex flex-col-reverse sm:flex-row items-center gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => setRejectPromptOpen(false)} className="w-full sm:w-auto">
                       Back
                     </Button>
-                    <Button size="sm" variant="danger" isLoading={isProcessing} onClick={handleReject}>
+                    <Button size="sm" variant="danger" isLoading={isProcessing} onClick={handleReject} className="w-full sm:w-auto">
                       Confirm Reject
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button size="sm" variant="danger" onClick={() => setRejectPromptOpen(true)}>
+                <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-end gap-2">
+                  <Button size="sm" variant="danger" onClick={() => setRejectPromptOpen(true)} className="w-full sm:w-auto">
                     Reject
                   </Button>
                   <Button
@@ -406,6 +406,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     isLoading={isProcessing}
                     onClick={() => handleApprove(false)}
                     title="Approve leave but keep it hidden from shared calendar"
+                    className="w-full sm:w-auto"
                   >
                     Approve (Keep Private)
                   </Button>
@@ -415,6 +416,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     isLoading={isProcessing}
                     onClick={() => handleApprove(true)}
                     title="Approve leave and display on shared calendar"
+                    className="w-full sm:w-auto"
                   >
                     Approve + Show on Calendar
                   </Button>

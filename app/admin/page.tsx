@@ -183,7 +183,8 @@ export default function AdminDashboardPage() {
               </Link>
             }
           />
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             {kpiData.pendingRequestsList.length === 0 ? (
               <div className="p-8 text-center text-slate-500 text-xs">
                 ✨ No pending leave requests. Everything is up to date!
@@ -263,6 +264,72 @@ export default function AdminDashboardPage() {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+
+          {/* Mobile Card View (< 768px) */}
+          <div className="md:hidden p-3 space-y-3">
+            {kpiData.pendingRequestsList.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-xs">
+                ✨ No pending leave requests. Everything is up to date!
+              </div>
+            ) : (
+              kpiData.pendingRequestsList.map((req: any) => (
+                <div
+                  key={req.id}
+                  className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-2.5 shadow-subtle"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                        {req.user?.full_name[0]}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">{req.user?.full_name}</h4>
+                        <p className="text-[11px] text-slate-400">{req.user?.department} • {req.leave_type}</p>
+                      </div>
+                    </div>
+                    <Badge variant="pending" size="sm">
+                      Pending
+                    </Badge>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-50 text-xs space-y-1">
+                    <p className="font-semibold text-slate-800">{formatDateRange(req.start_date, req.end_date)} ({calculateDaysCount(req.start_date, req.end_date)}d)</p>
+                    {req.reason && <p className="text-slate-600">{req.reason}</p>}
+                  </div>
+
+                  <div className="flex flex-col xs:flex-row gap-1.5 pt-2 border-t border-slate-100">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      className="w-full text-xs"
+                      disabled={processingId === req.id}
+                      onClick={() => handleReject(req.id, req.user?.full_name)}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-xs"
+                      disabled={processingId === req.id}
+                      onClick={() => handleApprove(req.id, req.user?.full_name, false)}
+                    >
+                      Approve (Hidden)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="success"
+                      className="w-full text-xs"
+                      isLoading={processingId === req.id}
+                      onClick={() => handleApprove(req.id, req.user?.full_name, true)}
+                    >
+                      Approve + Show
+                    </Button>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </Card>

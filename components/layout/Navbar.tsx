@@ -70,30 +70,30 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 py-3 transition-all">
-      <div className="flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2.5 sm:px-6 lg:px-8 py-2.5 sm:py-3 transition-all">
+      <div className="flex items-center justify-between gap-2 sm:gap-4 min-w-0">
         {/* Left: Mobile Toggle + Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             onClick={onMobileMenuToggle}
-            className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors"
+            className="lg:hidden p-1.5 sm:p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors flex-shrink-0"
             aria-label="Toggle Navigation"
           >
             {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <Link href="/calendar" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/20 group-hover:bg-blue-700 transition-colors">
-              <Calendar className="w-5 h-5" />
+          <Link href="/calendar" className="flex items-center gap-2 group min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/20 group-hover:bg-blue-700 transition-colors flex-shrink-0">
+              <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-900 tracking-tight text-base">OfficeFlow</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/60">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                <span className="font-bold text-slate-900 tracking-tight text-sm sm:text-base">OfficeFlow</span>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200/60 flex-shrink-0">
                   {isAdmin ? 'Admin' : 'Staff'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium hidden sm:block truncate">
                 Leave & Holiday Calendar
               </p>
             </div>
@@ -115,13 +115,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Right: Quick Switcher + Notifications + Profile */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
           {/* Quick User Switcher for Interactive Evaluation */}
           <div className="relative" ref={switchRef}>
             <button
               onClick={() => setIsSwitchOpen(!isSwitchOpen)}
               className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50/60 text-blue-900 hover:bg-blue-100/70 transition-colors text-xs font-semibold"
-              title="Quick switch between 4 team members for evaluation"
+              title="Quick switch between team members for evaluation"
             >
               <Sparkles className="w-3.5 h-3.5 text-blue-600" />
               <span>Switch User</span>
@@ -129,10 +129,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {isSwitchOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-slate-200 shadow-elevation p-2 z-50 text-left">
+              <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-white border border-slate-200 shadow-elevation p-2 z-50 text-left">
                 <div className="px-3 py-2 border-b border-slate-100">
                   <p className="text-xs font-bold text-slate-800">Quick Test Switcher</p>
-                  <p className="text-[11px] text-slate-500">Switch between the 4 users instantly</p>
+                  <p className="text-[11px] text-slate-500">Switch between team members instantly</p>
                 </div>
                 <div className="py-1 space-y-0.5">
                   {usersList.map((u) => {
@@ -172,7 +172,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="relative" ref={notifRef}>
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className="relative p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+              className="relative p-1.5 sm:p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
               aria-label="Notifications"
             >
               <Bell className="w-5 h-5" />
@@ -182,7 +182,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {isNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white border border-slate-200 shadow-elevation p-3 z-50">
+              <div className="absolute right-[-45px] sm:right-0 mt-2 w-[calc(100vw-1.5rem)] sm:w-80 md:w-96 max-w-sm rounded-2xl bg-white border border-slate-200 shadow-elevation p-3 z-50">
                 <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-100 mb-2">
                   <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                     Notifications
@@ -225,9 +225,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="relative" ref={userMenuRef}>
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+              className="flex items-center gap-1.5 sm:gap-2 p-1 sm:p-1.5 rounded-xl hover:bg-slate-100 transition-colors"
             >
-              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-semibold text-xs shadow-sm">
+              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-semibold text-xs shadow-sm flex-shrink-0">
                 {user?.full_name ? user.full_name[0] : 'U'}
               </div>
               <div className="text-left hidden md:block">
@@ -240,7 +240,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {isUserMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-elevation p-2 z-50">
+              <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-1.5rem)] rounded-2xl bg-white border border-slate-200 shadow-elevation p-2 z-50">
                 <div className="px-3 py-2 border-b border-slate-100">
                   <p className="text-xs font-bold text-slate-900">{user?.full_name}</p>
                   <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>

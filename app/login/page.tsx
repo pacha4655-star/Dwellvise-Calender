@@ -53,8 +53,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md mx-auto text-center">
         {/* Logo */}
         <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 mb-4">
           <Calendar className="w-6 h-6" />
@@ -62,13 +62,13 @@ export default function LoginPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
           OfficeFlow
         </h1>
-        <p className="mt-1 text-sm text-slate-500 font-medium">
+        <p className="mt-1 text-xs sm:text-sm text-slate-500 font-medium px-2">
           Leave & Government Holiday Calendar
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-8 px-6 sm:px-10 rounded-2xl border border-slate-200/80 shadow-elevation">
+      <div className="mt-6 sm:mt-8 w-full max-w-md mx-auto">
+        <div className="bg-white py-6 sm:py-8 px-4 sm:px-8 rounded-2xl border border-slate-200/80 shadow-elevation">
           {errorMsg && (
             <div className="mb-5 flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs">
               <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
@@ -97,20 +97,20 @@ export default function LoginPage() {
               leftIcon={<Lock className="w-4 h-4" />}
             />
 
-            <div className="flex items-center justify-between text-xs pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
               <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
                 <input
                   type="checkbox"
                   defaultChecked
                   className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
                 />
-                <span>Remember on this device</span>
+                <span className="text-[11px] sm:text-xs">Remember device</span>
               </label>
 
               <button
                 type="button"
                 onClick={() => setIsForgotModalOpen(true)}
-                className="font-semibold text-blue-600 hover:text-blue-700"
+                className="font-semibold text-blue-600 hover:text-blue-700 text-[11px] sm:text-xs"
               >
                 Forgot password?
               </button>
@@ -131,54 +131,54 @@ export default function LoginPage() {
           </form>
 
           {/* Quick Member Selector */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="mt-6 pt-5 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Company Members
               </span>
-              <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
+              <span className="text-[9px] sm:text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
                 Dwellvise Team
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => handleSelectAccount('pachamuthu@dwellvise.com')}
-                className={`p-2.5 rounded-xl border text-left transition-all group ${
+                className={`p-2 sm:p-2.5 rounded-xl border text-left transition-all group min-w-0 ${
                   email === 'pachamuthu@dwellvise.com'
                     ? 'border-blue-500 bg-blue-50/50'
                     : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
                 }`}
               >
-                <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Pachamuthu</p>
-                <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-1 inline-block">Staff</span>
+                <p className="text-[11px] sm:text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Pachamuthu</p>
+                <span className="text-[8px] sm:text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-0.5 inline-block">Staff</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectAccount('aswin@dwellvise.com')}
-                className={`p-2.5 rounded-xl border text-left transition-all group ${
+                className={`p-2 sm:p-2.5 rounded-xl border text-left transition-all group min-w-0 ${
                   email === 'aswin@dwellvise.com'
                     ? 'border-blue-500 bg-blue-50/50'
                     : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
                 }`}
               >
-                <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Aswin</p>
-                <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-1 inline-block">Staff</span>
+                <p className="text-[11px] sm:text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Aswin</p>
+                <span className="text-[8px] sm:text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-0.5 inline-block">Staff</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectAccount('dinesh@dwellvise.com')}
-                className={`p-2.5 rounded-xl border text-left transition-all group ${
+                className={`p-2 sm:p-2.5 rounded-xl border text-left transition-all group min-w-0 ${
                   email === 'dinesh@dwellvise.com'
                     ? 'border-blue-500 bg-blue-50/50'
                     : 'border-blue-200 bg-blue-50/30 hover:border-blue-400'
                 }`}
               >
-                <p className="text-xs font-bold text-blue-900 group-hover:text-blue-700 truncate">Dinesh</p>
-                <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1 py-0.2 rounded mt-1 inline-block">Admin</span>
+                <p className="text-[11px] sm:text-xs font-bold text-blue-900 group-hover:text-blue-700 truncate">Dinesh</p>
+                <span className="text-[8px] sm:text-[9px] font-bold text-blue-700 bg-blue-100 px-1 py-0.2 rounded mt-0.5 inline-block">Admin</span>
               </button>
             </div>
           </div>

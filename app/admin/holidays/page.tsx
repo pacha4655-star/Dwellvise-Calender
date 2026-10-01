@@ -135,8 +135,52 @@ export default function AdminHolidaysPage() {
           </Button>
         </div>
 
-        {/* Table */}
-        <Card className="border border-slate-200 overflow-hidden">
+        {/* Mobile View: Cards */}
+        <div className="block sm:hidden space-y-3">
+          {holidays.map((h) => (
+            <Card key={h.id} className="p-4 border border-slate-200 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">{h.name}</span>
+                  <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded mt-1 inline-block">
+                    {formatDisplayDate(h.date)}
+                  </span>
+                </div>
+                <Badge variant="holiday" size="sm">
+                  {h.holiday_type}
+                </Badge>
+              </div>
+
+              {h.description && (
+                <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
+                  {h.description}
+                </p>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditingHoliday(h)}
+                  leftIcon={<Edit className="w-3.5 h-3.5" />}
+                >
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => handleDelete(h.id, h.name)}
+                  leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                >
+                  Delete
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Desktop View: Table */}
+        <Card className="hidden sm:block border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>

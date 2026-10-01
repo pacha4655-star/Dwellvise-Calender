@@ -88,25 +88,25 @@ export default function AdminReportsPage() {
         </div>
 
         {/* Aggregate KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card className="p-4 bg-white border border-slate-200">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
               Total Applications
             </span>
-            <p className="text-2xl font-extrabold text-slate-900 mt-2">
+            <p className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-1.5 sm:mt-2">
               {report.totalLeaveRequests}
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Submitted by 4 employees</p>
+            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">Submitted by employees</p>
           </Card>
 
           <Card className="p-4 bg-white border border-slate-200">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+            <span className="text-[11px] sm:text-xs font-bold text-emerald-700 uppercase tracking-wider">
               Approved Leaves
             </span>
-            <p className="text-2xl font-extrabold text-emerald-700 mt-2">
+            <p className="text-xl sm:text-2xl font-extrabold text-emerald-700 mt-1.5 sm:mt-2">
               {report.approvedCount}
             </p>
-            <p className="text-[11px] text-emerald-600 mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-emerald-600 mt-0.5">
               {report.totalLeaveRequests > 0
                 ? `${Math.round((report.approvedCount / report.totalLeaveRequests) * 100)}% approval rate`
                 : '100%'}
@@ -114,28 +114,70 @@ export default function AdminReportsPage() {
           </Card>
 
           <Card className="p-4 bg-white border border-slate-200">
-            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">
+            <span className="text-[11px] sm:text-xs font-bold text-amber-700 uppercase tracking-wider">
               Pending Decisions
             </span>
-            <p className="text-2xl font-extrabold text-amber-700 mt-2">
+            <p className="text-xl sm:text-2xl font-extrabold text-amber-700 mt-1.5 sm:mt-2">
               {report.pendingCount}
             </p>
-            <p className="text-[11px] text-amber-600 mt-0.5">Awaiting Manager review</p>
+            <p className="text-[10px] sm:text-[11px] text-amber-600 mt-0.5">Awaiting review</p>
           </Card>
 
           <Card className="p-4 bg-white border border-slate-200">
-            <span className="text-xs font-bold text-red-700 uppercase tracking-wider">
+            <span className="text-[11px] sm:text-xs font-bold text-red-700 uppercase tracking-wider">
               Rejected Requests
             </span>
-            <p className="text-2xl font-extrabold text-red-700 mt-2">
+            <p className="text-xl sm:text-2xl font-extrabold text-red-700 mt-1.5 sm:mt-2">
               {report.rejectedCount}
             </p>
-            <p className="text-[11px] text-red-600 mt-0.5">Declined applications</p>
+            <p className="text-[10px] sm:text-[11px] text-red-600 mt-0.5">Declined applications</p>
           </Card>
         </div>
 
-        {/* Employee Breakdown Table */}
-        <Card className="border border-slate-200 overflow-hidden">
+        {/* Employee Breakdown - Mobile Cards */}
+        <div className="block sm:hidden space-y-3">
+          <h2 className="text-sm font-bold text-slate-900 px-1">Leave Breakdown by Employee</h2>
+          {report.employeeStats.map((stat) => (
+            <Card key={stat.user.id} className="p-4 border border-slate-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
+                    {stat.user.full_name[0]}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">{stat.user.full_name}</p>
+                    <p className="text-[10px] text-slate-400 capitalize">{stat.user.department} • {stat.user.role}</p>
+                  </div>
+                </div>
+                <span className="text-xs font-extrabold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
+                  {stat.daysTaken}d taken
+                </span>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1 pt-2 border-t border-slate-100 text-center text-[10px]">
+                <div className="p-1 rounded bg-slate-50">
+                  <span className="text-slate-400 block font-medium">Total</span>
+                  <span className="font-bold text-slate-800">{stat.totalLeaves}</span>
+                </div>
+                <div className="p-1 rounded bg-emerald-50">
+                  <span className="text-emerald-600 block font-medium">Approved</span>
+                  <span className="font-bold text-emerald-700">{stat.approved}</span>
+                </div>
+                <div className="p-1 rounded bg-amber-50">
+                  <span className="text-amber-600 block font-medium">Pending</span>
+                  <span className="font-bold text-amber-700">{stat.pending}</span>
+                </div>
+                <div className="p-1 rounded bg-red-50">
+                  <span className="text-red-600 block font-medium">Rejected</span>
+                  <span className="font-bold text-red-700">{stat.rejected}</span>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        {/* Employee Breakdown Table - Desktop */}
+        <Card className="hidden sm:block border border-slate-200 overflow-hidden">
           <CardHeader
             title="Leave Breakdown by Employee"
             subtitle="Individual attendance and time-off consumption"
@@ -196,11 +238,11 @@ export default function AdminReportsPage() {
             title="Monthly Leave & Holiday Distribution (Oct 2026 – Dec 2027)"
             subtitle="15-Month operational overview"
           />
-          <div className="p-4 sm:p-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+          <div className="p-3 sm:p-6 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 text-xs">
             {report.monthlyStats.map((m) => (
               <div
                 key={m.monthKey}
-                className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5"
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1.5"
               >
                 <p className="font-bold text-slate-800 text-xs">{m.monthName}</p>
                 <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">

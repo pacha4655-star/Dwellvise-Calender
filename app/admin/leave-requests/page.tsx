@@ -174,7 +174,8 @@ export default function AdminLeaveRequestsPage() {
 
         {/* Requests Table */}
         <Card className="border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             {filteredLeaves.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-xs">
                 No leave requests found for the selected status filter.
@@ -317,6 +318,120 @@ export default function AdminLeaveRequestsPage() {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+
+          {/* Mobile Card View (< 768px) */}
+          <div className="md:hidden p-3 space-y-3">
+            {filteredLeaves.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs">
+                No leave requests found for the selected status filter.
+              </div>
+            ) : (
+              filteredLeaves.map((leave) => {
+                const days = calculateDaysCount(leave.start_date, leave.end_date);
+                return (
+                  <div
+                    key={leave.id}
+                    className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-3 shadow-subtle"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                          {leave.user?.full_name ? leave.user.full_name[0] : 'U'}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900">{leave.user?.full_name}</h4>
+                          <p className="text-[11px] text-slate-400">{leave.user?.department} • {leave.leave_type}</p>
+                        </div>
+                      </div>
+                      <StatusBadge status={leave.status} size="sm" />
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Dates:</span>
+                        <span className="font-semibold text-slate-800">{formatDateRange(leave.start_date, leave.end_date)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Duration:</span>
+                        <span className="font-semibold text-slate-800">{days} {days === 1 ? 'day' : 'days'}</span>
+                      </div>
+                      {leave.reason && (
+                        <div className="pt-1 border-t border-slate-200/60 mt-1">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Reason:</span>
+                          <p className="text-slate-700 mt-0.5">{leave.reason}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Show on Calendar Toggle for Mobile */}
+                    {leave.status === 'approved' && (
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <span className="text-xs font-semibold text-slate-600">Show on Calendar:</span>
+                        <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleVisibility(leave.id, false)}
+                            disabled={isProcessing || !leave.show_on_calendar}
+                            className={`px-2.5 py-0.5 text-xs font-bold rounded-lg transition-all ${
+                              !leave.show_on_calendar
+                                ? 'bg-slate-700 text-white shadow-sm'
+                                : 'text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            OFF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleVisibility(leave.id, true)}
+                            disabled={isProcessing || leave.show_on_calendar}
+                            className={`px-2.5 py-0.5 text-xs font-bold rounded-lg transition-all ${
+                              leave.show_on_calendar
+                                ? 'bg-emerald-600 text-white shadow-sm'
+                                : 'text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            ON
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mobile Approval Action Buttons */}
+                    {leave.status === 'pending' && (
+                      <div className="flex flex-col xs:flex-row gap-1.5 pt-2 border-t border-slate-100">
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          className="w-full text-xs"
+                          onClick={() => handleOpenReject(leave.id)}
+                        >
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs"
+                          isLoading={isProcessing}
+                          onClick={() => handleApprove(leave.id, leave.user?.full_name || 'Employee', false)}
+                        >
+                          Approve (Hidden)
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="success"
+                          className="w-full text-xs"
+                          isLoading={isProcessing}
+                          onClick={() => handleApprove(leave.id, leave.user?.full_name || 'Employee', true)}
+                        >
+                          Approve + Show
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </Card>

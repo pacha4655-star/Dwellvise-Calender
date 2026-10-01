@@ -168,7 +168,8 @@ export default function HolidaysPage() {
         {/* List View */}
         {viewMode === 'list' ? (
           <Card className="border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
@@ -240,6 +241,67 @@ export default function HolidaysPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile List View (< 640px) */}
+            <div className="sm:hidden p-3 space-y-3">
+              {filteredHolidays.map((holiday) => {
+                const dateObj = parseDateKey(holiday.date);
+                const dayOfWeek = dateObj.toLocaleDateString('default', { weekday: 'short' });
+
+                return (
+                  <div
+                    key={holiday.id}
+                    onClick={() =>
+                      setSelectedHoliday({
+                        id: `event-${holiday.id}`,
+                        type: 'holiday',
+                        title: holiday.name,
+                        startDate: holiday.date,
+                        endDate: holiday.date,
+                        isHoliday: true,
+                        holidayType: holiday.holiday_type,
+                        description: holiday.description,
+                        rawHoliday: holiday,
+                      })
+                    }
+                    className="p-3.5 rounded-xl bg-white border border-slate-200 hover:border-rose-300 space-y-2.5 shadow-subtle cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                          {dateObj.getDate()}
+                        </span>
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900 leading-tight">{holiday.name}</h4>
+                          <p className="text-[11px] text-slate-500 font-medium">
+                            {formatDisplayDate(holiday.date)} ({dayOfWeek})
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="holiday" size="sm">
+                        {holiday.holiday_type.split(' ')[0]}
+                      </Badge>
+                    </div>
+
+                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                      {holiday.description}
+                    </p>
+
+                    {isAdmin && (
+                      <div className="flex justify-end pt-2 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleDelete(holiday.id, holiday.name)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 py-1 px-2 rounded-lg bg-red-50 hover:bg-red-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </Card>
         ) : (

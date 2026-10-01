@@ -72,16 +72,16 @@ export default function TeamLeavesPage() {
         </div>
 
         {/* Filter Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-subtle">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200 shadow-subtle">
+          <div className="flex flex-col xs:flex-row flex-wrap items-stretch xs:items-center gap-2.5 sm:gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500">Employee:</span>
+              <span className="text-xs font-semibold text-slate-500 min-w-16 sm:min-w-0">Employee:</span>
               <select
                 value={selectedUser}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500"
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 w-full xs:w-auto"
               >
-                <option value="all">All 4 Team Members</option>
+                <option value="all">All Team Members</option>
                 {usersList.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.full_name} ({u.department})
@@ -91,11 +91,11 @@ export default function TeamLeavesPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500">Month:</span>
+              <span className="text-xs font-semibold text-slate-500 min-w-16 sm:min-w-0">Month:</span>
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500"
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-blue-500 w-full xs:w-auto"
               >
                 {monthOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -106,9 +106,9 @@ export default function TeamLeavesPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1 text-[11px] text-slate-400">
-            <Lock className="w-3.5 h-3.5 text-slate-400" />
-            <span>Confidential reasons protected by Privacy Filter</span>
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400 pt-1 sm:pt-0">
+            <Lock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <span className="truncate">Confidential reasons protected</span>
           </div>
         </div>
 

@@ -46,7 +46,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
           onDateClick(dateKey);
         }
       }}
-      className={`min-h-[105px] sm:min-h-[125px] p-1.5 sm:p-2 border-b border-r border-slate-100/90 flex flex-col justify-between transition-all group select-none relative ${
+      className={`min-h-[58px] xs:min-h-[75px] sm:min-h-[105px] md:min-h-[125px] p-1 xs:p-1.5 sm:p-2 border-b border-r border-slate-100/90 flex flex-col justify-between transition-all group select-none relative ${
         !isCurrentMonth
           ? 'bg-slate-50/40 text-slate-400'
           : isSoftRedDay
@@ -57,9 +57,9 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
       } ${!isWithinBounds ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       {/* Top Bar: Date Number + Quick Action */}
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-0.5 sm:mb-1">
         <span
-          className={`text-xs font-semibold w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+          className={`text-[10px] sm:text-xs font-semibold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all ${
             isToday
               ? 'bg-blue-600 text-white font-bold shadow-sm'
               : isSoftRedDay && isCurrentMonth
@@ -74,7 +74,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
 
         {isWithinBounds && (
           <span
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-blue-600 hover:bg-blue-100/60"
+            className="hidden sm:inline-block opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-blue-600 hover:bg-blue-100/60"
             title={isAdmin ? 'Click to Apply Leave or Add Event Mention' : 'Click to Apply for Leave'}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -83,7 +83,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
       </div>
 
       {/* Events Container (Ordered by Priority: 1. Holiday -> 2. Mention -> 3. Leave) */}
-      <div className="flex-1 space-y-1 overflow-hidden">
+      <div className="flex-1 space-y-0.5 sm:space-y-1 overflow-hidden">
         {/* 1. Government Holidays (Unified Soft Red badge) */}
         {holidays.map((holiday) => (
           <div
@@ -93,9 +93,9 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
               onEventClick(holiday);
             }}
             title={`${holiday.title} - Government Holiday`}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#FEE2E2] border border-rose-200 text-[#B91C1C] text-[11px] font-semibold leading-tight truncate hover:bg-rose-200 transition-colors shadow-subtle cursor-pointer"
+            className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md bg-[#FEE2E2] border border-rose-200 text-[#B91C1C] text-[9px] xs:text-[10px] sm:text-[11px] font-semibold leading-tight truncate hover:bg-rose-200 transition-colors shadow-subtle cursor-pointer"
           >
-            <Flag className="w-2.5 h-2.5 text-[#B91C1C] flex-shrink-0" />
+            <Flag className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-[#B91C1C] flex-shrink-0" />
             <span className="truncate">{holiday.title}</span>
           </div>
         ))}
@@ -109,9 +109,9 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
               onEventClick(mention);
             }}
             title={`${mention.title} (${mention.manualEventType})`}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 text-[11px] font-semibold leading-tight truncate hover:bg-indigo-100 transition-colors shadow-subtle cursor-pointer"
+            className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 text-[9px] xs:text-[10px] sm:text-[11px] font-semibold leading-tight truncate hover:bg-indigo-100 transition-colors shadow-subtle cursor-pointer"
           >
-            <Megaphone className="w-2.5 h-2.5 text-indigo-600 flex-shrink-0" />
+            <Megaphone className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-indigo-600 flex-shrink-0" />
             <span className="truncate font-semibold">{mention.title}</span>
           </div>
         ))}
@@ -132,12 +132,12 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
                 onEventClick(leave);
               }}
               title={`${leave.userName} (${leave.leaveType}) - Approved & On Calendar`}
-              className={`flex items-center justify-between gap-1 px-1.5 py-0.5 rounded-md border text-[11px] font-medium leading-tight truncate transition-colors shadow-subtle cursor-pointer ${styleClasses}`}
+              className={`flex items-center justify-between gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md border text-[9px] xs:text-[10px] sm:text-[11px] font-medium leading-tight truncate transition-colors shadow-subtle cursor-pointer ${styleClasses}`}
             >
               <div className="flex items-center gap-1 min-w-0 truncate">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${indicatorDot}`} />
+                <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0 ${indicatorDot}`} />
                 <span className="truncate font-semibold">{leave.userName?.split(' ')[0]}</span>
-                <span className="truncate text-[10px] opacity-85 hidden sm:inline">
+                <span className="truncate text-[10px] opacity-85 hidden md:inline">
                   • {leave.leaveType?.replace(' Leave', '')}
                 </span>
               </div>

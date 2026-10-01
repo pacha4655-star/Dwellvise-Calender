@@ -180,7 +180,8 @@ export default function MyLeavesPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden sm:block overflow-x-auto">
             {filteredLeaves.length === 0 ? (
               <EmptyState
                 title="No leave requests found"
@@ -247,6 +248,68 @@ export default function MyLeavesPage() {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+
+          {/* Mobile Card View (< 640px) */}
+          <div className="sm:hidden p-3 space-y-3">
+            {filteredLeaves.length === 0 ? (
+              <EmptyState
+                title="No leave requests found"
+                description="You have not submitted any leave requests matching the selected filter."
+                action={
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsApplyModalOpen(true)}
+                  >
+                    Apply for Time Off
+                  </Button>
+                }
+              />
+            ) : (
+              filteredLeaves.map((leave) => {
+                const days = calculateDaysCount(leave.start_date, leave.end_date);
+                return (
+                  <div
+                    key={leave.id}
+                    className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-2.5 shadow-subtle"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">{leave.leave_type}</h4>
+                        <p className="text-xs text-slate-600 font-medium mt-0.5">
+                          {formatDateRange(leave.start_date, leave.end_date)}
+                        </p>
+                      </div>
+                      <StatusBadge status={leave.status} size="sm" />
+                    </div>
+
+                    {leave.reason && (
+                      <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg line-clamp-2">
+                        {leave.reason}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                      <span className="text-slate-500 font-medium">
+                        Duration: <strong className="text-slate-900">{days} {days === 1 ? 'day' : 'days'}</strong>
+                      </span>
+
+                      {leave.status === 'pending' && (
+                        <button
+                          onClick={() => handleCancel(leave.id)}
+                          disabled={cancellingId === leave.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Cancel Request</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </Card>

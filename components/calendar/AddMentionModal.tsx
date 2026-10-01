@@ -189,11 +189,11 @@ export const AddMentionModal: React.FC<AddMentionModalProps> = ({
           rows={3}
         />
 
-        <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-          <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3 pt-3 border-t border-slate-100">
+          <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting} className="w-full sm:w-auto">
             Cancel
           </Button>
-          <Button variant="primary" type="submit" isLoading={isSubmitting}>
+          <Button variant="primary" type="submit" isLoading={isSubmitting} className="w-full sm:w-auto">
             Publish Mention to Calendar
           </Button>
         </div>
