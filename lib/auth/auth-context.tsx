@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return {
         success: false,
-        message: 'No account found with this email. Try pachamuthu@officeflow.local or dinesh@officeflow.local',
+        message: 'No company account found with this email address. Please use your @dwellvise.com work email.',
       };
     }
 

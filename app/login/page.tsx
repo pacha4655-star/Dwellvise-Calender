@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Lock, Mail, ArrowRight, ShieldCheck, UserCheck, AlertCircle, CheckCircle2, HelpCircle } from 'lucide-react';
+import { Calendar, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
@@ -11,11 +11,11 @@ import { Modal } from '@/components/ui/Modal';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, usersList } = useAuth();
+  const { login } = useAuth();
   const { success, error: toastError } = useToast();
 
-  const [email, setEmail] = useState('pachamuthu@officeflow.local');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
@@ -23,6 +23,12 @@ export default function LoginPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    if (!email.trim() || !password) {
+      setErrorMsg('Please enter both your work email address and password.');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -41,16 +47,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickLogin = async (userEmail: string) => {
+  const handleSelectAccount = (userEmail: string) => {
     setEmail(userEmail);
-    setPassword('password123');
-    setIsLoading(true);
-    const result = await login(userEmail, 'password123');
-    setIsLoading(false);
-    if (result.success) {
-      success(result.message, 'Signed In');
-      router.push('/calendar');
-    }
+    setPassword('');
   };
 
   return (
@@ -81,7 +80,7 @@ export default function LoginPage() {
             <Input
               label="Work Email Address"
               type="email"
-              placeholder="e.g. pachamuthu@officeflow.local"
+              placeholder="name@dwellvise.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -131,64 +130,55 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Quick 1-Click Evaluation Presets */}
+          {/* Quick Member Selector */}
           <div className="mt-8 pt-6 border-t border-slate-100">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Quick Test Accounts (1-Click Login)
+                Company Members
               </span>
               <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">
-                4 Team Members
+                Dwellvise Team
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => handleQuickLogin('pachamuthu@officeflow.local')}
-                className="p-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-left transition-all group"
+                onClick={() => handleSelectAccount('pachamuthu@dwellvise.com')}
+                className={`p-2.5 rounded-xl border text-left transition-all group ${
+                  email === 'pachamuthu@dwellvise.com'
+                    ? 'border-blue-500 bg-blue-50/50'
+                    : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+                }`}
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700">Pachamuthu</p>
-                  <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Staff</span>
-                </div>
-                <p className="text-[10px] text-slate-500 truncate mt-0.5">Engineering</p>
+                <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Pachamuthu</p>
+                <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-1 inline-block">Staff</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('dinesh@officeflow.local')}
-                className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/30 hover:border-blue-400 hover:bg-blue-50 text-left transition-all group"
+                onClick={() => handleSelectAccount('aswin@dwellvise.com')}
+                className={`p-2.5 rounded-xl border text-left transition-all group ${
+                  email === 'aswin@dwellvise.com'
+                    ? 'border-blue-500 bg-blue-50/50'
+                    : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+                }`}
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-blue-900 group-hover:text-blue-700">Dinesh</p>
-                  <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">Admin</span>
-                </div>
-                <p className="text-[10px] text-blue-600 truncate mt-0.5">Management</p>
+                <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Aswin</p>
+                <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-1 inline-block">Staff</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('arun@officeflow.local')}
-                className="p-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-left transition-all group"
+                onClick={() => handleSelectAccount('dinesh@dwellvise.com')}
+                className={`p-2.5 rounded-xl border text-left transition-all group ${
+                  email === 'dinesh@dwellvise.com'
+                    ? 'border-blue-500 bg-blue-50/50'
+                    : 'border-blue-200 bg-blue-50/30 hover:border-blue-400'
+                }`}
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700">Arun</p>
-                  <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Staff</span>
-                </div>
-                <p className="text-[10px] text-slate-500 truncate mt-0.5">Design & Product</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('reshma@officeflow.local')}
-                className="p-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-slate-900 group-hover:text-blue-700">Reshma</p>
-                  <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">Staff</span>
-                </div>
-                <p className="text-[10px] text-slate-500 truncate mt-0.5">Quality Assurance</p>
+                <p className="text-xs font-bold text-blue-900 group-hover:text-blue-700 truncate">Dinesh</p>
+                <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1 py-0.2 rounded mt-1 inline-block">Admin</span>
               </button>
             </div>
           </div>
@@ -211,10 +201,10 @@ export default function LoginPage() {
       >
         <div className="space-y-3 text-xs text-slate-600">
           <p>
-            For security reasons, password resets are handled via your company IT administrator (<strong>Dinesh Kumar</strong>).
+            For security reasons, password resets are handled via your company IT administrator (<strong>Dinesh</strong>).
           </p>
           <div className="p-3 bg-slate-50 rounded-xl border text-[11px] space-y-1">
-            <p><strong>Admin Contact:</strong> dinesh@officeflow.local</p>
+            <p><strong>Admin Contact:</strong> dinesh@dwellvise.com</p>
             <p><strong>Emergency Line:</strong> +91 98400 11223</p>
           </div>
           <div className="pt-2 flex justify-end">

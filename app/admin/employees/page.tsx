@@ -238,7 +238,7 @@ export default function AdminEmployeesPage() {
           <Input
             label="Work Email"
             type="email"
-            placeholder="e.g. vignesh@officeflow.local"
+            placeholder="e.g. employee@dwellvise.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

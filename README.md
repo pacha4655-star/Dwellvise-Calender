@@ -12,14 +12,13 @@
 * **Leave Privacy**: Private employee reasons, medical explanations, internal admin notes, and rejection details are masked from peer employees and visible only to the owner and Admin.
 * **Row Level Security (RLS)**: PostgreSQL policies on Supabase enforce security at the database layer. Service-role keys are never exposed to the client.
 
-### Pre-Configured Company Members
+### Company Members
 
-| Name | Work Email | Role | Department | Default Password |
-| :--- | :--- | :--- | :--- | :--- |
-| **Dinesh Kumar** | `dinesh@officeflow.local` | 👑 **Admin / Manager** | Management | `password123` |
-| **Pachamuthu S** | `pachamuthu@officeflow.local` | 👤 **Employee** | Engineering | `password123` |
-| **Arun Vijay** | `arun@officeflow.local` | 👤 **Employee** | Design & Product | `password123` |
-| **Reshma Banu** | `reshma@officeflow.local` | 👤 **Employee** | Quality Assurance | `password123` |
+| Name | Work Email | Role | Department |
+| :--- | :--- | :--- | :--- |
+| **Dinesh** | `dinesh@dwellvise.com` | 👑 **Admin / Manager** | Management |
+| **Pachamuthu** | `pachamuthu@dwellvise.com` | 👤 **Employee** | Engineering |
+| **Aswin** | `aswin@dwellvise.com` | 👤 **Employee** | Engineering |
 
 ---
 

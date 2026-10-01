@@ -1,14 +1,13 @@
 -- ==============================================================================
--- OfficeFlow - Seed Data (Updated with Mentions & show_on_calendar)
+-- OfficeFlow - Seed Data (Production Company Profiles & Tamil Nadu Holidays)
 -- ==============================================================================
 
--- 1. Insert Initial Profiles
+-- 1. Insert Real Company Profiles
 INSERT INTO public.profiles (id, full_name, email, role, department, designation, phone)
 VALUES 
-  ('00000000-0000-0000-0000-000000000001', 'Dinesh Kumar', 'dinesh@officeflow.local', 'admin', 'Management', 'Operations Manager', '+91 98400 11223'),
-  ('00000000-0000-0000-0000-000000000002', 'Pachamuthu S', 'pachamuthu@officeflow.local', 'employee', 'Engineering', 'Senior Full Stack Developer', '+91 98400 22334'),
-  ('00000000-0000-0000-0000-000000000003', 'Arun Vijay', 'arun@officeflow.local', 'employee', 'Design & Product', 'UI/UX Designer', '+91 98400 33445'),
-  ('00000000-0000-0000-0000-000000000004', 'Reshma Banu', 'reshma@officeflow.local', 'employee', 'Quality Assurance', 'QA Automation Engineer', '+91 98400 44556')
+  ('00000000-0000-0000-0000-000000000001', 'Pachamuthu', 'pachamuthu@dwellvise.com', 'employee', 'Engineering', 'Senior Software Engineer', '+91 98400 22334'),
+  ('00000000-0000-0000-0000-000000000002', 'Aswin', 'aswin@dwellvise.com', 'employee', 'Engineering', 'Software Engineer', '+91 98400 33445'),
+  ('00000000-0000-0000-0000-000000000003', 'Dinesh', 'dinesh@dwellvise.com', 'admin', 'Management', 'Operations & Engineering Lead', '+91 98400 11223')
 ON CONFLICT (email) DO UPDATE SET 
   full_name = EXCLUDED.full_name,
   role = EXCLUDED.role,
@@ -54,15 +53,6 @@ ON CONFLICT (date) DO UPDATE SET
 -- 3. Insert Manual Calendar Mentions (Admin Events)
 INSERT INTO public.calendar_events (id, title, description, start_date, end_date, event_type, created_by)
 VALUES
-  ('20000000-0000-0000-0000-000000000001', 'Quarterly All-Hands Meeting', 'Q3 Performance Review & Product Roadmap Presentation in Conference Room A', '2026-10-06', '2026-10-06', 'Office Meeting', '00000000-0000-0000-0000-000000000001'),
-  ('20000000-0000-0000-0000-000000000002', 'Annual Team Outing — Mahabalipuram', 'Full day team bonding, beach resort lunch, and team building activities', '2026-10-23', '2026-10-23', 'Team Outing', '00000000-0000-0000-0000-000000000001')
-ON CONFLICT (id) DO NOTHING;
-
--- 4. Insert Leave Requests with show_on_calendar values
-INSERT INTO public.leave_requests (id, user_id, leave_type, start_date, end_date, reason, status, show_on_calendar, approved_by, approved_at)
-VALUES
-  -- Arun: Approved and explicitly marked show_on_calendar = true
-  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000003', 'Personal Leave', '2026-10-12', '2026-10-12', 'Apartment documentation and lease formalities', 'approved', true, '00000000-0000-0000-0000-000000000001', '2026-10-01 11:00:00+00'),
-  -- Reshma: Pending leave (show_on_calendar = false by default)
-  ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000004', 'Casual Leave', '2026-10-26', '2026-10-27', 'Attending Advanced Test Automation Summit in Bangalore', 'pending', false, NULL, NULL)
+  ('20000000-0000-0000-0000-000000000001', 'Quarterly All-Hands Meeting', 'Q3 Performance Review & Product Roadmap Presentation in Conference Room A', '2026-10-06', '2026-10-06', 'Office Meeting', '00000000-0000-0000-0000-000000000003'),
+  ('20000000-0000-0000-0000-000000000002', 'Annual Team Outing — Mahabalipuram', 'Full day team bonding, beach resort lunch, and team building activities', '2026-10-23', '2026-10-23', 'Team Outing', '00000000-0000-0000-0000-000000000003')
 ON CONFLICT (id) DO NOTHING;

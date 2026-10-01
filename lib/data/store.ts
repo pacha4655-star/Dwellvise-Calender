@@ -18,29 +18,18 @@ import { INITIAL_MENTIONS } from './initial-mentions';
 import { calculateDaysCount, calculateWorkingDays, formatDisplayDate } from '@/lib/utils/date-utils';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase/client';
 
-const STORAGE_KEY_USERS = 'officeflow_users_v2';
-const STORAGE_KEY_LEAVES = 'officeflow_leaves_v2';
-const STORAGE_KEY_HOLIDAYS = 'officeflow_holidays_v2';
-const STORAGE_KEY_MENTIONS = 'officeflow_mentions_v2';
-const STORAGE_KEY_NOTIFICATIONS = 'officeflow_notifications_v2';
+const STORAGE_KEY_USERS = 'officeflow_dwellvise_users_v3';
+const STORAGE_KEY_LEAVES = 'officeflow_dwellvise_leaves_v3';
+const STORAGE_KEY_HOLIDAYS = 'officeflow_dwellvise_holidays_v3';
+const STORAGE_KEY_MENTIONS = 'officeflow_dwellvise_mentions_v3';
+const STORAGE_KEY_NOTIFICATIONS = 'officeflow_dwellvise_notifications_v3';
 
 // In-Memory State
 let memoryUsers: UserProfile[] = [...INITIAL_USERS];
 let memoryLeaves: LeaveRequest[] = [...INITIAL_LEAVES];
 let memoryHolidays: GovernmentHoliday[] = [...INITIAL_HOLIDAYS];
 let memoryMentions: ManualCalendarEvent[] = [...INITIAL_MENTIONS];
-let memoryNotifications: AppNotification[] = [
-  {
-    id: 'notif-1',
-    userId: '00000000-0000-0000-0000-000000000001',
-    title: 'New Leave Request',
-    message: 'Reshma Banu submitted a Casual Leave request for Oct 26 - Oct 27.',
-    type: 'info',
-    isRead: false,
-    createdAt: '2026-10-01T08:45:00Z',
-    link: '/admin/leave-requests',
-  },
-];
+let memoryNotifications: AppNotification[] = [];
 
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
