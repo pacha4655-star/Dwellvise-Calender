@@ -50,9 +50,9 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   const isNextDisabled = !canNavigateNext(currentYear, currentMonth);
 
   return (
-    <div className="space-y-3 pb-3 border-b border-slate-200/80">
+    <div className="w-full min-w-0 space-y-3 pb-3 border-b border-slate-200/80">
       {/* Top Row: Month Navigation, Today, Views, Apply & Mention Buttons */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 min-w-0">
         {/* Navigation & Month Heading */}
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div className="flex items-center bg-white rounded-xl border border-slate-200 p-0.5 sm:p-1 shadow-subtle flex-shrink-0">

@@ -46,7 +46,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
           onDateClick(dateKey);
         }
       }}
-      className={`min-h-[58px] xs:min-h-[75px] sm:min-h-[105px] md:min-h-[125px] p-1 xs:p-1.5 sm:p-2 border-b border-r border-slate-100/90 flex flex-col justify-between transition-all group select-none relative ${
+      className={`min-h-[56px] xs:min-h-[72px] sm:min-h-[105px] md:min-h-[125px] p-0.5 xs:p-1 sm:p-2 border-b border-r border-slate-100/90 flex flex-col justify-between transition-all group select-none relative ${
         !isCurrentMonth
           ? 'bg-slate-50/40 text-slate-400'
           : isSoftRedDay
@@ -59,7 +59,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
       {/* Top Bar: Date Number + Quick Action */}
       <div className="flex items-center justify-between mb-0.5 sm:mb-1">
         <span
-          className={`text-[10px] sm:text-xs font-semibold w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all ${
+          className={`text-[9px] xs:text-[10px] sm:text-xs font-semibold w-4 h-4 xs:w-5 xs:h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all ${
             isToday
               ? 'bg-blue-600 text-white font-bold shadow-sm'
               : isSoftRedDay && isCurrentMonth
@@ -93,7 +93,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
               onEventClick(holiday);
             }}
             title={`${holiday.title} - Government Holiday`}
-            className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md bg-[#FEE2E2] border border-rose-200 text-[#B91C1C] text-[9px] xs:text-[10px] sm:text-[11px] font-semibold leading-tight truncate hover:bg-rose-200 transition-colors shadow-subtle cursor-pointer"
+            className="flex items-center gap-0.5 sm:gap-1 px-0.5 xs:px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md bg-[#FEE2E2] border border-rose-200 text-[#B91C1C] text-[8px] xs:text-[9px] sm:text-[11px] font-semibold leading-tight truncate hover:bg-rose-200 transition-colors shadow-subtle cursor-pointer"
           >
             <Flag className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-[#B91C1C] flex-shrink-0" />
             <span className="truncate">{holiday.title}</span>
@@ -109,7 +109,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
               onEventClick(mention);
             }}
             title={`${mention.title} (${mention.manualEventType})`}
-            className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 text-[9px] xs:text-[10px] sm:text-[11px] font-semibold leading-tight truncate hover:bg-indigo-100 transition-colors shadow-subtle cursor-pointer"
+            className="flex items-center gap-0.5 sm:gap-1 px-0.5 xs:px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 text-[8px] xs:text-[9px] sm:text-[11px] font-semibold leading-tight truncate hover:bg-indigo-100 transition-colors shadow-subtle cursor-pointer"
           >
             <Megaphone className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-indigo-600 flex-shrink-0" />
             <span className="truncate font-semibold">{mention.title}</span>
@@ -132,12 +132,12 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
                 onEventClick(leave);
               }}
               title={`${leave.userName} (${leave.leaveType}) - Approved & On Calendar`}
-              className={`flex items-center justify-between gap-0.5 sm:gap-1 px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md border text-[9px] xs:text-[10px] sm:text-[11px] font-medium leading-tight truncate transition-colors shadow-subtle cursor-pointer ${styleClasses}`}
+              className={`flex items-center justify-between gap-0.5 sm:gap-1 px-0.5 xs:px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md border text-[8px] xs:text-[9px] sm:text-[11px] font-medium leading-tight truncate transition-colors shadow-subtle cursor-pointer ${styleClasses}`}
             >
               <div className="flex items-center gap-1 min-w-0 truncate">
                 <span className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full flex-shrink-0 ${indicatorDot}`} />
                 <span className="truncate font-semibold">{leave.userName?.split(' ')[0]}</span>
-                <span className="truncate text-[10px] opacity-85 hidden md:inline">
+                <span className="truncate text-[9px] sm:text-[10px] opacity-85 hidden md:inline">
                   • {leave.leaveType?.replace(' Leave', '')}
                 </span>
               </div>

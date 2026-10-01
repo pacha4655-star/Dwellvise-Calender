@@ -25,7 +25,7 @@ export const CalendarLegend: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 sm:gap-3 py-2 px-2.5 sm:px-3 bg-white rounded-xl border border-slate-200/80 text-[10px] sm:text-[11px] font-medium text-slate-700 shadow-subtle">
+    <div className="w-full min-w-0 flex flex-wrap items-center gap-1.5 sm:gap-3 py-2 px-2.5 sm:px-3 bg-white rounded-xl border border-slate-200/80 text-[10px] sm:text-[11px] font-medium text-slate-700 shadow-subtle">
       <span className="font-bold text-slate-400 uppercase tracking-wider text-[9px] sm:text-[10px] mr-0.5 sm:mr-1">
         Priority Legend:
       </span>

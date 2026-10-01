@@ -134,7 +134,7 @@ export const OfficeCalendar: React.FC<OfficeCalendarProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="w-full min-w-0 flex flex-col space-y-4">
       {/* Calendar Header with Navigation and Filter Controls */}
       <CalendarHeader
         currentYear={currentYear}
@@ -159,11 +159,11 @@ export const OfficeCalendar: React.FC<OfficeCalendarProps> = ({
       />
 
       {/* Main Calendar View Container */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden flex flex-col flex-1">
+      <div className="w-full min-w-0 bg-white rounded-2xl border border-slate-200 shadow-subtle overflow-hidden flex flex-col flex-1">
         {currentView === 'month' && (
-          <div className="flex flex-col flex-1">
+          <div className="w-full min-w-0 flex flex-col flex-1">
             {/* Weekday Header Row (Sunday highlighted in Soft Red) */}
-            <div className="grid grid-cols-7 border-b border-slate-200/90 bg-slate-50/80 text-center text-xs font-bold text-slate-600 py-2.5">
+            <div className="grid grid-cols-7 border-b border-slate-200/90 bg-slate-50/80 text-center text-[10px] sm:text-xs font-bold text-slate-600 py-2 sm:py-2.5">
               {WEEKDAYS.map((day, idx) => (
                 <div
                   key={day}

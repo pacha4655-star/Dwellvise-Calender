@@ -106,7 +106,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-dvh bg-[#F8FAFC] flex flex-col font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
       {/* Top Sticky Navbar */}
       <Navbar
         isMobileMenuOpen={isMobileMenuOpen}
@@ -116,9 +116,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       />
 
       {/* Main App Container */}
-      <div className="flex-1 flex max-w-[1600px] w-full mx-auto">
+      <div className="flex-1 flex max-w-[1600px] w-full mx-auto min-w-0">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block">
+        <div className="hidden lg:block flex-shrink-0">
           <Sidebar onApplyLeaveClick={() => setIsApplyModalOpen(true)} />
         </div>
 
@@ -139,7 +139,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         )}
 
         {/* Center Main Workspace */}
-        <main className="flex-1 min-w-0 w-full max-w-full p-3.5 xs:p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 min-w-0 w-full max-w-full p-2.5 xs:p-3.5 sm:p-6 lg:p-8">
           {children}
         </main>
 

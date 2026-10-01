@@ -13,11 +13,11 @@ export default function CalendarPage() {
       searchQuery={globalSearch}
       onSearchChange={setGlobalSearch}
     >
-      <div className="h-full flex flex-col space-y-4">
+      <div className="w-full min-w-0 flex flex-col space-y-4">
         {/* Welcome Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 sm:pb-2 min-w-0">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
               Office Calendar & Leave Roster
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium">
