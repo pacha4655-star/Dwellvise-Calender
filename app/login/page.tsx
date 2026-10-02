@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Calendar, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
@@ -11,17 +11,24 @@ import { Modal } from '@/components/ui/Modal';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { user, login, isLoading: isAuthLoading } = useAuth();
   const { success, error: toastError } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
 
+  // If already authenticated, redirect to /calendar
+  useEffect(() => {
+    if (!isAuthLoading && user) {
+      router.replace('/calendar');
+    }
+  }, [user, isAuthLoading, router]);
+
   // Guarantee fields start completely empty on every mount/refresh
-  React.useEffect(() => {
+  useEffect(() => {
     setEmail('');
     setPassword('');
   }, []);
@@ -35,7 +42,7 @@ export default function LoginPage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       const result = await login(email, password);
@@ -53,7 +60,7 @@ export default function LoginPage() {
       toastError(msg, 'Sign In Error');
       setPassword('');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -61,6 +68,27 @@ export default function LoginPage() {
     setEmail(userEmail);
     setPassword('');
   };
+
+  // Show a clean loading state while restoring existing Supabase session to prevent flash of login screen
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-dvh w-full bg-[#F8FAFC] flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+          <p className="text-xs sm:text-sm font-semibold text-slate-700">
+            Checking workspace session...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is already authenticated and waiting for redirect, don't show login form
+  if (user) {
+    return null;
+  }
 
   return (
     <div className="min-h-dvh w-full bg-[#F8FAFC] flex flex-col justify-between p-3 sm:p-4 md:p-6 box-border">
@@ -142,7 +170,7 @@ export default function LoginPage() {
                   type="submit"
                   variant="primary"
                   size="lg"
-                  isLoading={isLoading}
+                  isLoading={isSubmitting}
                   className="w-full"
                   rightIcon={<ArrowRight className="w-4 h-4 flex-shrink-0" />}
                 >

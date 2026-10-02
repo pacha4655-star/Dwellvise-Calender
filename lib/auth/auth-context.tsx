@@ -19,8 +19,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = 'officeflow_auth_user_id';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
@@ -71,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const sessionPromise = supabase.auth.getSession();
           const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) =>
-            setTimeout(() => resolve({ data: { session: null }, error: null }), 2500)
+            setTimeout(() => resolve({ data: { session: null }, error: null }), 3000)
           );
 
           const { data } = await Promise.race([sessionPromise, timeoutPromise]);
@@ -83,16 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (dbProfile.is_active === false) {
                 setAuthError('This employee account is deactivated. Contact office admin.');
                 setUser(null);
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem(AUTH_STORAGE_KEY);
-                }
                 setIsLoading(false);
                 return;
               }
               setUser(dbProfile);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem(AUTH_STORAGE_KEY, dbProfile.id);
-              }
               setIsLoading(false);
               return;
             }
@@ -108,16 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (matched.is_active === false) {
                 setAuthError('This employee account is deactivated. Contact office admin.');
                 setUser(null);
-                if (typeof window !== 'undefined') {
-                  localStorage.removeItem(AUTH_STORAGE_KEY);
-                }
                 setIsLoading(false);
                 return;
               }
               setUser(matched);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
-              }
               setIsLoading(false);
               return;
             }
@@ -129,24 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             setIsLoading(false);
             return;
+          } else {
+            // No active Supabase session
+            setUser(null);
+            setIsLoading(false);
+            return;
           }
         } catch (supabaseErr) {
           console.warn('Supabase session check error:', supabaseErr);
-        }
-      }
-
-      // Check local storage saved session
-      const savedUserId = typeof window !== 'undefined' ? localStorage.getItem(AUTH_STORAGE_KEY) : null;
-      if (savedUserId) {
-        const found = currentUsers.find((u) => u.id === savedUserId);
-        if (found && found.is_active !== false) {
-          setUser(found);
+          setUser(null);
           setIsLoading(false);
           return;
         }
       }
 
-      // Unauthenticated: No default fallback
+      // If Supabase is not configured (offline/demo mode only)
       setUser(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error loading authentication session';
@@ -168,9 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_OUT' || !session) {
             setUser(null);
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem(AUTH_STORAGE_KEY);
-            }
+            setIsLoading(false);
             return;
           }
 
@@ -179,9 +160,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
             if (dbProfile && dbProfile.is_active !== false) {
               setUser(dbProfile);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem(AUTH_STORAGE_KEY, dbProfile.id);
-              }
             } else {
               const currentUsers = getUsers();
               const matched = currentUsers.find(
@@ -191,11 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               );
               if (matched && matched.is_active !== false) {
                 setUser(matched);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
-                }
               }
             }
+            setIsLoading(false);
           }
         });
         authSubscription = authListener.subscription;
@@ -257,9 +233,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             setUser(dbProfile);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem(AUTH_STORAGE_KEY, dbProfile.id);
-            }
             setIsLoading(false);
             return { success: true, message: `Welcome back, ${dbProfile.full_name}!` };
           }
@@ -282,9 +255,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             setUser(matched);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
-            }
             setIsLoading(false);
             return { success: true, message: `Welcome back, ${matched.full_name}!` };
           }
@@ -328,18 +298,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser(matchedUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(AUTH_STORAGE_KEY, matchedUser.id);
-    }
     setIsLoading(false);
     return { success: true, message: `Welcome back, ${matchedUser.full_name}!` };
   };
 
   const logout = async () => {
     setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    }
+    setAuthError(null);
     if (isSupabaseConfigured() && supabase) {
       try {
         await supabase.auth.signOut();
@@ -354,9 +319,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const target = currentUsers.find((u) => u.id === userId);
     if (target && target.is_active !== false) {
       setUser(target);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(AUTH_STORAGE_KEY, target.id);
-      }
     }
   };
 
