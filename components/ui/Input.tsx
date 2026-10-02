@@ -12,13 +12,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
-      <div className="w-full">
+      <div className="w-full max-w-full box-border">
         {label && (
           <label htmlFor={inputId} className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             {label}
           </label>
         )}
-        <div className="relative">
+        <div className="relative w-full max-w-full box-border">
           {leftIcon && (
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
               {leftIcon}
@@ -27,7 +27,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
-            className={`w-full bg-white border text-sm text-slate-900 rounded-xl px-3.5 py-2.5 outline-none transition-all placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-500 ${
+            className={`w-full max-w-full box-border bg-white border text-sm text-slate-900 rounded-xl px-3.5 py-2.5 outline-none transition-all placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-500 ${
               leftIcon ? 'pl-10' : ''
             } ${
               error
@@ -38,9 +38,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           />
         </div>
         {error ? (
-          <p className="mt-1 text-xs text-red-600 font-medium">{error}</p>
+          <p className="mt-1 text-xs text-red-600 font-medium break-words">{error}</p>
         ) : helperText ? (
-          <p className="mt-1 text-xs text-slate-500">{helperText}</p>
+          <p className="mt-1 text-xs text-slate-500 break-words">{helperText}</p>
         ) : null}
       </div>
     );
@@ -60,7 +60,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
-      <div className="w-full">
+      <div className="w-full max-w-full box-border">
         {label && (
           <label htmlFor={selectId} className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             {label}
@@ -69,7 +69,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         <select
           ref={ref}
           id={selectId}
-          className={`w-full bg-white border text-sm text-slate-900 rounded-xl px-3.5 py-2.5 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-500 ${
+          className={`w-full max-w-full box-border bg-white border text-sm text-slate-900 rounded-xl px-3.5 py-2.5 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-500 ${
             error
               ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
               : 'border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
@@ -83,9 +83,9 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           )) : children}
         </select>
         {error ? (
-          <p className="mt-1 text-xs text-red-600 font-medium">{error}</p>
+          <p className="mt-1 text-xs text-red-600 font-medium break-words">{error}</p>
         ) : helperText ? (
-          <p className="mt-1 text-xs text-slate-500">{helperText}</p>
+          <p className="mt-1 text-xs text-slate-500 break-words">{helperText}</p>
         ) : null}
       </div>
     );
@@ -104,7 +104,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     const areaId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
     return (
-      <div className="w-full">
+      <div className="w-full max-w-full box-border">
         {label && (
           <label htmlFor={areaId} className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
             {label}
@@ -114,7 +114,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={areaId}
           rows={props.rows || 3}
-          className={`w-full bg-white border text-sm text-slate-900 rounded-xl px-3.5 py-2.5 outline-none transition-all placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-500 ${
+          className={`w-full max-w-full box-border bg-white border text-sm text-slate-900 rounded-xl px-3.5 py-2.5 outline-none transition-all placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-500 ${
             error
               ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
               : 'border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
@@ -122,9 +122,9 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...props}
         />
         {error ? (
-          <p className="mt-1 text-xs text-red-600 font-medium">{error}</p>
+          <p className="mt-1 text-xs text-red-600 font-medium break-words">{error}</p>
         ) : helperText ? (
-          <p className="mt-1 text-xs text-slate-500">{helperText}</p>
+          <p className="mt-1 text-xs text-slate-500 break-words">{helperText}</p>
         ) : null}
       </div>
     );
