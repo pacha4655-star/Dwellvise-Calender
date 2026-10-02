@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- OfficeFlow - Leave & Government Holiday Calendar Schema
--- Database: Supabase PostgreSQL (Updated with Privacy & Manual Mentions)
+-- Database: Supabase PostgreSQL (Updated with Privacy & Robust Auth/RLS)
 -- ==============================================================================
 
 -- Enable UUID Extension
@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 -- ==============================================================================
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_auth_user_id ON public.profiles(auth_user_id);
 CREATE INDEX IF NOT EXISTS idx_leave_requests_user_id ON public.leave_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_leave_requests_dates ON public.leave_requests(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON public.leave_requests(status);
@@ -132,7 +133,8 @@ SELECT
   CASE 
     WHEN auth.uid() IS NOT NULL AND (
       p.auth_user_id = auth.uid() OR 
-      EXISTS (SELECT 1 FROM public.profiles admin_p WHERE admin_p.auth_user_id = auth.uid() AND admin_p.role = 'admin')
+      p.id = auth.uid() OR
+      EXISTS (SELECT 1 FROM public.profiles admin_p WHERE (admin_p.auth_user_id = auth.uid() OR admin_p.id = auth.uid()) AND admin_p.role = 'admin')
     ) THEN lr.reason
     ELSE NULL
   END AS reason
@@ -156,11 +158,12 @@ CREATE POLICY "Public profiles are viewable by authenticated users"
 
 CREATE POLICY "Users can update their own profile"
   ON public.profiles FOR UPDATE TO authenticated
-  USING (auth.uid() = auth_user_id) WITH CHECK (auth.uid() = auth_user_id);
+  USING (auth.uid() = auth_user_id OR auth.uid() = id)
+  WITH CHECK (auth.uid() = auth_user_id OR auth.uid() = id);
 
 CREATE POLICY "Admins can manage all profiles"
   ON public.profiles FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin'));
 
 -- Holidays Policies
 CREATE POLICY "Holidays are readable by all authenticated users"
@@ -168,7 +171,7 @@ CREATE POLICY "Holidays are readable by all authenticated users"
 
 CREATE POLICY "Only admins can manage holidays"
   ON public.holidays FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin'));
 
 -- Manual Calendar Events Policies
 CREATE POLICY "Calendar events are readable by all authenticated users"
@@ -176,36 +179,36 @@ CREATE POLICY "Calendar events are readable by all authenticated users"
 
 CREATE POLICY "Only admins can insert, update, or delete calendar events"
   ON public.calendar_events FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin'));
 
 -- Leave Requests Policies
 CREATE POLICY "Users can view their own leave requests"
   ON public.leave_requests FOR SELECT TO authenticated
   USING (
-    user_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid())
-    OR EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin')
+    user_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() OR id = auth.uid())
+    OR EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin')
   );
 
 CREATE POLICY "Users can create their own leave requests"
   ON public.leave_requests FOR INSERT TO authenticated
-  WITH CHECK (user_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()));
+  WITH CHECK (user_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() OR id = auth.uid()));
 
 CREATE POLICY "Users can cancel their own pending leave requests"
   ON public.leave_requests FOR UPDATE TO authenticated
-  USING (user_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()) AND status = 'pending');
+  USING (user_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() OR id = auth.uid()) AND status = 'pending');
 
 CREATE POLICY "Admins can update, approve/reject, and toggle show_on_calendar for all leave requests"
   ON public.leave_requests FOR UPDATE TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin'));
 
 -- Notifications Policies
 CREATE POLICY "Users can view their own notifications"
   ON public.notifications FOR SELECT TO authenticated
-  USING (recipient_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()));
+  USING (recipient_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() OR id = auth.uid()));
 
 CREATE POLICY "Users can update their own notifications"
   ON public.notifications FOR UPDATE TO authenticated
-  USING (recipient_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid()));
+  USING (recipient_id IN (SELECT id FROM public.profiles WHERE auth_user_id = auth.uid() OR id = auth.uid()));
 
 CREATE POLICY "Authenticated users can create notifications"
   ON public.notifications FOR INSERT TO authenticated
@@ -213,4 +216,4 @@ CREATE POLICY "Authenticated users can create notifications"
 
 CREATE POLICY "Admins can manage all notifications"
   ON public.notifications FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.profiles WHERE auth_user_id = auth.uid() AND role = 'admin'));
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin'));

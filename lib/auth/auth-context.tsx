@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { UserProfile } from '@/types';
 import { getUsers, getUserById, initializeStore, subscribeToStore } from '@/lib/data/store';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase/client';
@@ -12,7 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   authError: string | null;
   login: (email: string, password?: string) => Promise<{ success: boolean; message: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   switchUser: (userId: string) => void;
   retryAuth: () => Promise<void>;
 }
@@ -27,7 +27,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const loadCurrentUser = async () => {
+  const fetchProfileForAuthUser = useCallback(
+    async (authUserId: string, authUserEmail?: string | null): Promise<UserProfile | null> => {
+      if (!supabase || !isSupabaseConfigured()) return null;
+
+      try {
+        const emailFilter = authUserEmail ? `email.ilike.${authUserEmail}` : '';
+        const orFilter = emailFilter
+          ? `id.eq.${authUserId},auth_user_id.eq.${authUserId},${emailFilter}`
+          : `id.eq.${authUserId},auth_user_id.eq.${authUserId}`;
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(orFilter)
+          .maybeSingle();
+
+        if (error) {
+          console.warn('Profile fetch warning:', error.message);
+          return null;
+        }
+
+        return (data as UserProfile) || null;
+      } catch (err) {
+        console.warn('Profile lookup error:', err);
+        return null;
+      }
+    },
+    []
+  );
+
+  const loadCurrentUser = useCallback(async () => {
     setIsLoading(true);
     setAuthError(null);
 
@@ -36,20 +66,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const currentUsers = getUsers();
       setUsersList(currentUsers);
 
-      // Check Supabase session if configured with timeout
+      // Check Supabase session if configured with safe timeout
       if (isSupabaseConfigured() && supabase) {
         try {
           const sessionPromise = supabase.auth.getSession();
           const timeoutPromise = new Promise<{ data: { session: null }; error: null }>((resolve) =>
-            setTimeout(() => resolve({ data: { session: null }, error: null }), 2000)
+            setTimeout(() => resolve({ data: { session: null }, error: null }), 2500)
           );
 
           const { data } = await Promise.race([sessionPromise, timeoutPromise]);
-          if (data?.session?.user?.email) {
+          const authUser = data?.session?.user;
+
+          if (authUser) {
+            const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
+            if (dbProfile) {
+              if (dbProfile.is_active === false) {
+                setAuthError('This employee account is deactivated. Contact office admin.');
+                setUser(null);
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem(AUTH_STORAGE_KEY);
+                }
+                setIsLoading(false);
+                return;
+              }
+              setUser(dbProfile);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(AUTH_STORAGE_KEY, dbProfile.id);
+              }
+              setIsLoading(false);
+              return;
+            }
+
+            // Fallback match in local list
             const matched = currentUsers.find(
-              (u) => u.email.toLowerCase() === data.session.user.email?.toLowerCase()
+              (u) =>
+                u.id === authUser.id ||
+                (authUser.email && u.email.toLowerCase() === authUser.email.toLowerCase())
             );
-            if (matched && matched.is_active) {
+
+            if (matched) {
+              if (matched.is_active === false) {
+                setAuthError('This employee account is deactivated. Contact office admin.');
+                setUser(null);
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem(AUTH_STORAGE_KEY);
+                }
+                setIsLoading(false);
+                return;
+              }
               setUser(matched);
               if (typeof window !== 'undefined') {
                 localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
@@ -57,6 +121,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setIsLoading(false);
               return;
             }
+
+            // Authenticated in Supabase but no profile configured
+            setAuthError(
+              'Your account is authenticated, but your OfficeFlow profile is not configured. Please contact the administrator.'
+            );
+            setUser(null);
+            setIsLoading(false);
+            return;
           }
         } catch (supabaseErr) {
           console.warn('Supabase session check error:', supabaseErr);
@@ -67,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const savedUserId = typeof window !== 'undefined' ? localStorage.getItem(AUTH_STORAGE_KEY) : null;
       if (savedUserId) {
         const found = currentUsers.find((u) => u.id === savedUserId);
-        if (found && found.is_active) {
+        if (found && found.is_active !== false) {
           setUser(found);
           setIsLoading(false);
           return;
@@ -84,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchProfileForAuthUser]);
 
   useEffect(() => {
     loadCurrentUser();
@@ -93,16 +165,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let authSubscription: { unsubscribe: () => void } | null = null;
     if (isSupabaseConfigured() && supabase) {
       try {
-        const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-          if (session?.user?.email) {
-            const currentUsers = getUsers();
-            const matched = currentUsers.find(
-              (u) => u.email.toLowerCase() === session.user.email?.toLowerCase()
-            );
-            if (matched && matched.is_active) {
-              setUser(matched);
+        const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_OUT' || !session) {
+            setUser(null);
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem(AUTH_STORAGE_KEY);
+            }
+            return;
+          }
+
+          if (session?.user) {
+            const authUser = session.user;
+            const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
+            if (dbProfile && dbProfile.is_active !== false) {
+              setUser(dbProfile);
               if (typeof window !== 'undefined') {
-                localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
+                localStorage.setItem(AUTH_STORAGE_KEY, dbProfile.id);
+              }
+            } else {
+              const currentUsers = getUsers();
+              const matched = currentUsers.find(
+                (u) =>
+                  u.id === authUser.id ||
+                  (authUser.email && u.email.toLowerCase() === authUser.email.toLowerCase())
+              );
+              if (matched && matched.is_active !== false) {
+                setUser(matched);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
+                }
               }
             }
           }
@@ -127,25 +218,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authSubscription?.unsubscribe();
       unsubscribeStore();
     };
-  }, []);
+  }, [loadCurrentUser, fetchProfileForAuthUser]);
 
   const login = async (email: string, _password?: string): Promise<{ success: boolean; message: string }> => {
     setIsLoading(true);
+    setAuthError(null);
     const targetEmail = email.trim().toLowerCase();
 
-    // Check Supabase Auth if configured
+    // 1. If Supabase Auth is configured, authenticate with Supabase Auth
     if (isSupabaseConfigured() && supabase) {
       try {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: targetEmail,
           password: _password || '',
         });
-        if (error) {
-          console.error('Supabase sign-in error:', error.message);
+
+        if (authError) {
+          console.log('Supabase sign-in error:', authError.message);
           setIsLoading(false);
           return {
             success: false,
-            message: error.message || 'Invalid login credentials',
+            message: authError.message || 'Invalid login credentials',
+          };
+        }
+
+        const authUser = authData?.user;
+        if (authUser) {
+          // Look up user profile from public.profiles
+          const dbProfile = await fetchProfileForAuthUser(authUser.id, targetEmail);
+
+          if (dbProfile) {
+            if (dbProfile.is_active === false) {
+              setIsLoading(false);
+              return {
+                success: false,
+                message: 'This employee account is deactivated. Contact office admin.',
+              };
+            }
+
+            setUser(dbProfile);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(AUTH_STORAGE_KEY, dbProfile.id);
+            }
+            setIsLoading(false);
+            return { success: true, message: `Welcome back, ${dbProfile.full_name}!` };
+          }
+
+          // Check fallback in local store
+          const currentUsers = getUsers();
+          const matched = currentUsers.find(
+            (u) =>
+              u.id === authUser.id ||
+              u.email.toLowerCase() === targetEmail
+          );
+
+          if (matched) {
+            if (matched.is_active === false) {
+              setIsLoading(false);
+              return {
+                success: false,
+                message: 'This employee account is deactivated. Contact office admin.',
+              };
+            }
+
+            setUser(matched);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(AUTH_STORAGE_KEY, matched.id);
+            }
+            setIsLoading(false);
+            return { success: true, message: `Welcome back, ${matched.full_name}!` };
+          }
+
+          setIsLoading(false);
+          return {
+            success: false,
+            message:
+              'Your account is authenticated, but your OfficeFlow profile is not configured. Please contact the administrator.',
           };
         }
       } catch (err: unknown) {
@@ -159,7 +307,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const matchedUser = usersList.find((u) => u.email.toLowerCase() === targetEmail);
+    // 2. Standalone / Local Mode Authentication
+    const currentUsers = getUsers();
+    const matchedUser = currentUsers.find((u) => u.email.toLowerCase() === targetEmail);
 
     if (!matchedUser) {
       setIsLoading(false);
@@ -169,7 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    if (!matchedUser.is_active) {
+    if (matchedUser.is_active === false) {
       setIsLoading(false);
       return {
         success: false,
@@ -185,19 +335,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: true, message: `Welcome back, ${matchedUser.full_name}!` };
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(AUTH_STORAGE_KEY);
     }
     if (isSupabaseConfigured() && supabase) {
-      supabase.auth.signOut().catch(console.warn);
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('Supabase signOut warning:', err);
+      }
     }
   };
 
   const switchUser = (userId: string) => {
-    const target = getUserById(userId);
-    if (target) {
+    const currentUsers = getUsers();
+    const target = currentUsers.find((u) => u.id === userId);
+    if (target && target.is_active !== false) {
       setUser(target);
       if (typeof window !== 'undefined') {
         localStorage.setItem(AUTH_STORAGE_KEY, target.id);
