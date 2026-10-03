@@ -100,9 +100,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
     setIsNotifOpen(false);
 
+    const targetLeaveId = notif.leave_request_id || notif.reference_id;
+
     if (notif.type === 'leave_request') {
       if (isAdmin) {
-        router.push(`/admin/leave-requests${notif.reference_id ? `?id=${notif.reference_id}` : ''}`);
+        router.push(`/admin/leave-requests${targetLeaveId ? `?id=${targetLeaveId}` : ''}`);
       } else {
         router.push('/my-leaves');
       }
