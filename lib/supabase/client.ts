@@ -1,5 +1,4 @@
-import { createBrowserClient } from '@supabase/ssr';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -14,24 +13,22 @@ export const isSupabaseConfigured = (): boolean => {
   );
 };
 
-export const createClient = () => {
-  if (isSupabaseConfigured()) {
-    try {
-      return createBrowserClient(supabaseUrl, supabaseAnonKey);
-    } catch (err) {
-      console.warn('Browser client creation fallback:', err);
-      return createSupabaseClient(supabaseUrl, supabaseAnonKey);
-    }
-  }
-  return null;
-};
+let browserClientInstance: SupabaseClient | null = null;
 
-export const supabase = isSupabaseConfigured()
-  ? createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+export const getSupabaseClient = (): SupabaseClient | null => {
+  if (!isSupabaseConfigured()) return null;
+  if (!browserClientInstance) {
+    browserClientInstance = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
       },
-    })
-  : null;
+    });
+  }
+  return browserClientInstance;
+};
+
+export const supabase = isSupabaseConfigured() ? getSupabaseClient() : null;
+
+export const createClient = () => getSupabaseClient();

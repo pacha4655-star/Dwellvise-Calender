@@ -147,15 +147,7 @@ export default function LoginPage() {
                 leftIcon={<Lock className="w-4 h-4" />}
               />
 
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
-                <label className="flex items-center gap-1.5 sm:gap-2 text-slate-600 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 flex-shrink-0"
-                  />
-                  <span className="text-[11px] sm:text-xs">Remember device</span>
-                </label>
-
+              <div className="flex items-center justify-end pt-0.5">
                 <button
                   type="button"
                   onClick={() => setIsForgotModalOpen(true)}
