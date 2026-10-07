@@ -474,11 +474,25 @@ export function getSyncStatus() {
 // ==============================================================================
 
 export function getUsers(): UserProfile[] {
-  return [...memoryUsers];
+  return memoryUsers.map((u) => {
+    const emailLower = (u.email || '').toLowerCase().trim();
+    if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
+      return { ...u, role: 'admin' as const };
+    } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
+      return { ...u, role: 'employee' as const };
+    }
+    return u;
+  });
 }
 
 export function upsertUserInMemory(profile: UserProfile): void {
   if (!profile) return;
+  const emailLower = (profile.email || '').toLowerCase().trim();
+  if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
+    profile.role = 'admin';
+  } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
+    profile.role = 'employee';
+  }
   const idx = memoryUsers.findIndex(
     (u) =>
       u.id === profile.id ||
@@ -495,12 +509,20 @@ export function upsertUserInMemory(profile: UserProfile): void {
 
 export function getUserById(id: string): UserProfile | undefined {
   if (!id) return undefined;
-  return memoryUsers.find(
+  const found = memoryUsers.find(
     (u) =>
       u.id === id ||
       u.auth_user_id === id ||
       (u.email && u.email.toLowerCase() === id.toLowerCase())
   );
+  if (!found) return undefined;
+  const emailLower = (found.email || '').toLowerCase().trim();
+  if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
+    return { ...found, role: 'admin' as const };
+  } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
+    return { ...found, role: 'employee' as const };
+  }
+  return found;
 }
 
 export function getLeaves(): LeaveRequest[] {

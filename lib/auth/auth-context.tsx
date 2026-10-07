@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { UserProfile } from '@/types';
+import { UserProfile, Role } from '@/types';
 import { getUsers, initializeStore, subscribeToStore, upsertUserInMemory } from '@/lib/data/store';
 import { isSupabaseConfigured, getSupabaseClient } from '@/lib/supabase/client';
 
@@ -32,15 +32,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!profile) return profile;
     const emailLower = (profile.email || '').toLowerCase().trim();
     if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
-      if (profile.role !== 'admin') {
-        profile.role = 'admin';
-        const client = getSupabaseClient();
-        if (client && isSupabaseConfigured()) {
-          Promise.resolve(client.from('profiles').update({ role: 'admin' }).eq('id', profile.id)).catch(() => {});
-        }
+      profile.role = 'admin';
+      const client = getSupabaseClient();
+      if (client && isSupabaseConfigured()) {
+        Promise.resolve(
+          client.from('profiles').update({ role: 'admin', is_active: true }).eq('id', profile.id)
+        ).catch(() => {});
+        Promise.resolve(
+          client.from('profiles').update({ role: 'admin', is_active: true }).eq('email', emailLower)
+        ).catch(() => {});
       }
     } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
       profile.role = 'employee';
+    } else {
+      profile.role = ((profile.role || 'employee').toLowerCase() === 'admin' ? 'admin' : 'employee') as Role;
     }
     return profile;
   }, []);
@@ -267,8 +272,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUsersList(updated);
       setUser((prevUser) => {
         if (!prevUser) return null;
-        const refreshed = updated.find((u) => u.id === prevUser.id);
-        return refreshed || prevUser;
+        const refreshed = updated.find((u) => u.id === prevUser.id || u.email.toLowerCase() === prevUser.email.toLowerCase());
+        if (refreshed) {
+          return normalizeProfileRole(refreshed);
+        }
+        return normalizeProfileRole(prevUser);
       });
     });
 
@@ -276,7 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authSubscription?.unsubscribe();
       unsubscribeStore();
     };
-  }, [loadCurrentUser, fetchProfileForAuthUser]);
+  }, [loadCurrentUser, fetchProfileForAuthUser, normalizeProfileRole]);
 
   const login = async (email: string, password?: string): Promise<{ success: boolean; message: string }> => {
     setIsLoading(true);
@@ -448,6 +456,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('officeflow_active_user_id');
+      localStorage.removeItem('officeflow_dwellvise_users_v3');
     }
 
     const client = getSupabaseClient();
@@ -464,10 +473,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const currentUsers = getUsers();
     const target = currentUsers.find((u) => u.id === userId);
     if (target && target.is_active !== false) {
+      const normalized = normalizeProfileRole(target);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('officeflow_active_user_id', target.id);
+        localStorage.setItem('officeflow_active_user_id', normalized.id);
       }
-      setUser(target);
+      upsertUserInMemory(normalized);
+      setUser(normalized);
     }
   };
 
@@ -476,7 +487,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         usersList,
-        isAdmin: user?.role === 'admin',
+        isAdmin: Boolean(user?.role && (user.role as string).toLowerCase() === 'admin' && (user.is_active ?? true)),
         isLoading,
         authError,
         login,

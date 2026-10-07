@@ -166,6 +166,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onApplyLeaveClick, onCloseMobi
             <p className="text-[10px] text-slate-500 truncate">{user?.department}</p>
           </div>
         </div>
+        <div className="mt-2 text-center">
+          <span className="text-[9px] text-slate-400 font-mono">OfficeFlow v1.3.0 • Production</span>
+        </div>
       </div>
     </aside>
   );
