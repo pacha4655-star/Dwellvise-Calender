@@ -182,11 +182,11 @@ export default function LoginPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => handleSelectAccount('pachamuthu@dwellvise.com')}
-                  className={`p-1.5 sm:p-2.5 rounded-xl border text-left transition-all group min-w-0 w-full ${
+                  className={`p-1.5 sm:p-2 rounded-xl border text-left transition-all group min-w-0 w-full ${
                     email === 'pachamuthu@dwellvise.com'
                       ? 'border-blue-500 bg-blue-50/50'
                       : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
@@ -199,20 +199,20 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => handleSelectAccount('aswin@dwellvise.com')}
-                  className={`p-1.5 sm:p-2.5 rounded-xl border text-left transition-all group min-w-0 w-full ${
+                  className={`p-1.5 sm:p-2 rounded-xl border text-left transition-all group min-w-0 w-full ${
                     email === 'aswin@dwellvise.com'
                       ? 'border-blue-500 bg-blue-50/50'
-                      : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+                      : 'border-blue-200 bg-blue-50/30 hover:border-blue-400'
                   }`}
                 >
-                  <p className="text-[11px] sm:text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Aswin</p>
-                  <span className="text-[8px] sm:text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-0.5 inline-block">Staff</span>
+                  <p className="text-[11px] sm:text-xs font-bold text-blue-900 group-hover:text-blue-700 truncate">Aswin</p>
+                  <span className="text-[8px] sm:text-[9px] font-bold text-blue-700 bg-blue-100 px-1 py-0.2 rounded mt-0.5 inline-block">Admin</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleSelectAccount('dinesh@dwellvise.com')}
-                  className={`p-1.5 sm:p-2.5 rounded-xl border text-left transition-all group min-w-0 w-full ${
+                  className={`p-1.5 sm:p-2 rounded-xl border text-left transition-all group min-w-0 w-full ${
                     email === 'dinesh@dwellvise.com'
                       ? 'border-blue-500 bg-blue-50/50'
                       : 'border-blue-200 bg-blue-50/30 hover:border-blue-400'
@@ -220,6 +220,19 @@ export default function LoginPage() {
                 >
                   <p className="text-[11px] sm:text-xs font-bold text-blue-900 group-hover:text-blue-700 truncate">Dinesh</p>
                   <span className="text-[8px] sm:text-[9px] font-bold text-blue-700 bg-blue-100 px-1 py-0.2 rounded mt-0.5 inline-block">Admin</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectAccount('shalini@dwellvise.com')}
+                  className={`p-1.5 sm:p-2 rounded-xl border text-left transition-all group min-w-0 w-full ${
+                    email === 'shalini@dwellvise.com'
+                      ? 'border-blue-500 bg-blue-50/50'
+                      : 'border-slate-200 hover:border-blue-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <p className="text-[11px] sm:text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">Shalini</p>
+                  <span className="text-[8px] sm:text-[9px] font-semibold text-slate-500 bg-slate-100 px-1 py-0.2 rounded mt-0.5 inline-block">Staff</span>
                 </button>
               </div>
             </div>
@@ -243,10 +256,10 @@ export default function LoginPage() {
       >
         <div className="space-y-3 text-xs text-slate-600">
           <p>
-            For security reasons, password resets are handled via your company IT administrator (<strong>Dinesh</strong>).
+            For security reasons, password resets are handled via your company IT administrators (<strong>Dinesh / Aswin</strong>).
           </p>
           <div className="p-3 bg-slate-50 rounded-xl border text-[11px] space-y-1">
-            <p><strong>Admin Contact:</strong> dinesh@dwellvise.com</p>
+            <p><strong>Admin Contacts:</strong> dinesh@dwellvise.com / aswin@dwellvise.com</p>
             <p><strong>Emergency Line:</strong> +91 98400 11223</p>
           </div>
           <div className="pt-2 flex justify-end">

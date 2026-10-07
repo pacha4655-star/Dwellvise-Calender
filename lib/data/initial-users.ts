@@ -16,7 +16,7 @@ export const INITIAL_USERS: UserProfile[] = [
     id: '00000000-0000-0000-0000-000000000002',
     full_name: 'Aswin',
     email: 'aswin@dwellvise.com',
-    role: 'employee',
+    role: 'admin',
     department: 'Engineering',
     designation: 'Software Engineer',
     phone: '+91 98400 33445',
@@ -34,4 +34,16 @@ export const INITIAL_USERS: UserProfile[] = [
     is_active: true,
     created_at: '2026-09-01T09:00:00Z',
   },
+  {
+    id: '00000000-0000-0000-0000-000000000004',
+    full_name: 'Shalini',
+    email: 'shalini@dwellvise.com',
+    role: 'employee',
+    department: 'Engineering',
+    designation: 'Software Engineer',
+    phone: '+91 98400 44556',
+    is_active: true,
+    created_at: '2026-10-01T09:00:00Z',
+  },
 ];
+

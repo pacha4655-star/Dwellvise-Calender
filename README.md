@@ -17,8 +17,9 @@
 | Name | Work Email | Role | Department |
 | :--- | :--- | :--- | :--- |
 | **Dinesh** | `dinesh@dwellvise.com` | 👑 **Admin / Manager** | Management |
+| **Aswin** | `aswin@dwellvise.com` | 👑 **Admin / Manager** | Engineering |
 | **Pachamuthu** | `pachamuthu@dwellvise.com` | 👤 **Employee** | Engineering |
-| **Aswin** | `aswin@dwellvise.com` | 👤 **Employee** | Engineering |
+| **Shalini** | `shalini@dwellvise.com` | 👤 **Employee** | Engineering |
 
 ---
 

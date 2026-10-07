@@ -241,8 +241,30 @@ export function initializeStore() {
   try {
     const storedUsers = localStorage.getItem(STORAGE_KEY_USERS);
     if (storedUsers) {
-      memoryUsers = JSON.parse(storedUsers);
+      const parsed = JSON.parse(storedUsers) as UserProfile[];
+      // Merge initial users: update roles (e.g. Aswin -> admin) and add missing users (e.g. Shalini)
+      const merged = [...parsed];
+      INITIAL_USERS.forEach((initUser) => {
+        const existingIdx = merged.findIndex(
+          (u) => u.email.toLowerCase() === initUser.email.toLowerCase() || u.id === initUser.id
+        );
+        if (existingIdx !== -1) {
+          merged[existingIdx] = {
+            ...merged[existingIdx],
+            full_name: initUser.full_name,
+            role: initUser.role,
+            department: merged[existingIdx].department || initUser.department,
+            designation: merged[existingIdx].designation || initUser.designation,
+            is_active: merged[existingIdx].is_active ?? true,
+          };
+        } else {
+          merged.push(initUser);
+        }
+      });
+      memoryUsers = merged;
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(memoryUsers));
     } else {
+      memoryUsers = [...INITIAL_USERS];
       localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(INITIAL_USERS));
     }
 
@@ -419,6 +441,19 @@ export async function createNotification(payload: {
   const targetRecipient = payload.recipient_user_id || payload.recipient_id || '';
   const targetLeaveId = payload.leave_request_id || payload.reference_id || null;
 
+  // Duplicate check: Prevent creating duplicate notifications for the same leave, recipient, and type
+  if (targetLeaveId && targetRecipient) {
+    const existingMemory = memoryNotifications.find(
+      (n) =>
+        (n.recipient_user_id === targetRecipient || n.recipient_id === targetRecipient) &&
+        (n.leave_request_id === targetLeaveId || n.reference_id === targetLeaveId) &&
+        n.type === payload.type
+    );
+    if (existingMemory) {
+      return existingMemory;
+    }
+  }
+
   const newNotif: AppNotification = {
     id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     recipient_user_id: targetRecipient,
@@ -443,6 +478,20 @@ export async function createNotification(payload: {
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
+      if (targetLeaveId && targetRecipient) {
+        const { data: existingDb } = await client
+          .from('notifications')
+          .select('id')
+          .eq('recipient_user_id', targetRecipient)
+          .eq('leave_request_id', targetLeaveId)
+          .eq('type', payload.type)
+          .maybeSingle();
+
+        if (existingDb) {
+          return newNotif;
+        }
+      }
+
       await client.from('notifications').insert({
         recipient_user_id: targetRecipient,
         sender_id: payload.sender_id || null,
@@ -644,29 +693,49 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
 
   memoryLeaves = [newLeave, ...memoryLeaves];
 
-  // Format date range string for notifications (e.g. "08 Oct 2026 to 09 Oct 2026")
+  // Format date range string for notifications (e.g. "from 08 Oct 2026 to 09 Oct 2026")
   const startFormatted = formatDisplayDate(startDate);
   const endFormatted = formatDisplayDate(endDate);
-  const dateRangeStr = startDate === endDate
-    ? `on ${startFormatted}`
-    : `from ${startFormatted} to ${endFormatted}`;
+  const dateRangeStr = `from ${startFormatted} to ${endFormatted}`;
 
-  // Notify ALL active Admins about new leave request
-  const activeAdmins = memoryUsers.filter((u) => u.role === 'admin' && u.is_active);
-  for (const admin of activeAdmins) {
-    createNotification({
-      recipient_user_id: admin.id,
-      recipient_id: admin.id,
-      sender_id: user.id,
-      title: 'New Leave Request',
-      message: `${user.full_name} has applied for ${leaveType} ${dateRangeStr}.`,
-      type: 'leave_request',
-      leave_request_id: newLeave.id,
-      reference_id: newLeave.id,
-    }).catch((err) => console.warn('Admin notification error:', err));
-  }
-
+  // Dynamic admin notification query: Notify ALL active admins in public.profiles (role = 'admin' AND is_active = true)
   const client = getSupabaseClient();
+  const notifyAdmins = async () => {
+    let activeAdmins: UserProfile[] = [];
+    if (isSupabaseConfigured() && client) {
+      try {
+        const { data: adminProfiles } = await client
+          .from('profiles')
+          .select('*')
+          .eq('role', 'admin')
+          .eq('is_active', true);
+        if (adminProfiles && adminProfiles.length > 0) {
+          activeAdmins = adminProfiles as UserProfile[];
+        }
+      } catch (err) {
+        console.warn('Supabase active admin query error:', err);
+      }
+    }
+    if (activeAdmins.length === 0) {
+      activeAdmins = memoryUsers.filter((u) => u.role === 'admin' && u.is_active);
+    }
+
+    for (const admin of activeAdmins) {
+      createNotification({
+        recipient_user_id: admin.id,
+        recipient_id: admin.id,
+        sender_id: user.id,
+        title: 'New Leave Request',
+        message: `${user.full_name} has applied for ${leaveType} ${dateRangeStr}.`,
+        type: 'leave_request',
+        leave_request_id: newLeave.id,
+        reference_id: newLeave.id,
+      }).catch((err) => console.warn('Admin notification error:', err));
+    }
+  };
+
+  notifyAdmins().catch((err) => console.warn('Notify admins error:', err));
+
   if (isSupabaseConfigured() && client) {
     try {
       await client.from('leave_requests').insert({
@@ -718,12 +787,10 @@ export async function approveLeave(
     updated_at: new Date().toISOString(),
   };
 
-  // Format date range for notification (e.g. "08 Oct 2026 – 09 Oct 2026")
+  // Format date range for notification (e.g. "from 08 Oct 2026 to 09 Oct 2026")
   const startFormatted = formatDisplayDate(leave.start_date);
   const endFormatted = formatDisplayDate(leave.end_date);
-  const dateRangeStr = leave.start_date === leave.end_date
-    ? startFormatted
-    : `${startFormatted} – ${endFormatted}`;
+  const dateRangeStr = `from ${startFormatted} to ${endFormatted}`;
 
   // Notify Employee about approval (without exposing private notes)
   createNotification({
@@ -731,7 +798,7 @@ export async function approveLeave(
     recipient_id: leave.user_id,
     sender_id: adminUserId,
     title: 'Leave Approved',
-    message: `Your ${leave.leave_type} request for ${dateRangeStr} has been approved.`,
+    message: `Your ${leave.leave_type} ${dateRangeStr} has been approved.`,
     type: 'leave_approved',
     leave_request_id: leave.id,
     reference_id: leave.id,
@@ -822,12 +889,10 @@ export async function rejectLeave(
     updated_at: new Date().toISOString(),
   };
 
-  // Format date range for notification (e.g. "08 Oct 2026 – 09 Oct 2026")
+  // Format date range for notification (e.g. "from 08 Oct 2026 to 09 Oct 2026")
   const startFormatted = formatDisplayDate(leave.start_date);
   const endFormatted = formatDisplayDate(leave.end_date);
-  const dateRangeStr = leave.start_date === leave.end_date
-    ? startFormatted
-    : `${startFormatted} – ${endFormatted}`;
+  const dateRangeStr = `from ${startFormatted} to ${endFormatted}`;
 
   // Notify Employee about rejection
   createNotification({
@@ -835,7 +900,7 @@ export async function rejectLeave(
     recipient_id: leave.user_id,
     sender_id: adminUserId,
     title: 'Leave Rejected',
-    message: `Your ${leave.leave_type} request for ${dateRangeStr} has been rejected.`,
+    message: `Your ${leave.leave_type} ${dateRangeStr} has been rejected.`,
     type: 'leave_rejected',
     leave_request_id: leave.id,
     reference_id: leave.id,

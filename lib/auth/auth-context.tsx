@@ -26,15 +26,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   /**
-   * Look up profile by auth user id (auth.users.id -> public.profiles.id)
+   * Look up profile by auth user id (auth.users.id -> public.profiles.id or public.profiles.auth_user_id / email)
    */
   const fetchProfileForAuthUser = useCallback(
-    async (authUserId: string): Promise<UserProfile | null> => {
+    async (authUserId: string, authEmail?: string): Promise<UserProfile | null> => {
       const client = getSupabaseClient();
       if (!client || !isSupabaseConfigured()) return null;
 
       try {
-        // Query public.profiles with .eq('id', authUserId)
+        // 1. Query public.profiles with .eq('id', authUserId)
         const { data, error } = await client
           .from('profiles')
           .select('*')
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return data as UserProfile;
         }
 
-        // Secondary fallback for schemas with separate auth_user_id column
+        // 2. Secondary fallback for schemas with separate auth_user_id column
         const { data: authUserData, error: authUserErr } = await client
           .from('profiles')
           .select('*')
@@ -60,7 +60,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('Profile fetch warning (auth_user_id lookup):', authUserErr.message);
         }
 
-        return (authUserData as UserProfile) || null;
+        if (authUserData) {
+          return authUserData as UserProfile;
+        }
+
+        // 3. Fallback lookup by email if available
+        if (authEmail) {
+          const { data: emailData, error: emailErr } = await client
+            .from('profiles')
+            .select('*')
+            .eq('email', authEmail.toLowerCase().trim())
+            .maybeSingle();
+
+          if (emailErr) {
+            console.warn('Profile fetch warning (email lookup):', emailErr.message);
+          }
+
+          if (emailData) {
+            // Auto-link auth_user_id for seamless future lookups
+            try {
+              await client
+                .from('profiles')
+                .update({ auth_user_id: authUserId })
+                .eq('id', emailData.id);
+            } catch {
+              // Ignore update error if RLS restricts
+            }
+            return emailData as UserProfile;
+          }
+        }
+
+        return null;
       } catch (err) {
         console.warn('Profile lookup error:', err);
         return null;
@@ -94,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const authUser = data?.session?.user;
 
           if (authUser) {
-            const dbProfile = await fetchProfileForAuthUser(authUser.id);
+            const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
             if (dbProfile) {
               if (dbProfile.is_active === false) {
                 setAuthError('This employee account is deactivated. Contact office admin.');
@@ -184,7 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (session?.user) {
             const authUser = session.user;
-            const dbProfile = await fetchProfileForAuthUser(authUser.id);
+            const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
             if (dbProfile && dbProfile.is_active !== false) {
               setUser(dbProfile);
             } else {
@@ -254,7 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const authUser = authData?.user;
         if (authUser) {
           // Look up user profile from public.profiles using authenticatedUser.id
-          const dbProfile = await fetchProfileForAuthUser(authUser.id);
+          const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
 
           if (dbProfile) {
             if (dbProfile.is_active === false) {

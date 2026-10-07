@@ -6,8 +6,9 @@
 INSERT INTO public.profiles (id, full_name, email, role, department, designation, phone)
 VALUES 
   ('00000000-0000-0000-0000-000000000001', 'Pachamuthu', 'pachamuthu@dwellvise.com', 'employee', 'Engineering', 'Senior Software Engineer', '+91 98400 22334'),
-  ('00000000-0000-0000-0000-000000000002', 'Aswin', 'aswin@dwellvise.com', 'employee', 'Engineering', 'Software Engineer', '+91 98400 33445'),
-  ('00000000-0000-0000-0000-000000000003', 'Dinesh', 'dinesh@dwellvise.com', 'admin', 'Management', 'Operations & Engineering Lead', '+91 98400 11223')
+  ('00000000-0000-0000-0000-000000000002', 'Aswin', 'aswin@dwellvise.com', 'admin', 'Engineering', 'Software Engineer', '+91 98400 33445'),
+  ('00000000-0000-0000-0000-000000000003', 'Dinesh', 'dinesh@dwellvise.com', 'admin', 'Management', 'Operations & Engineering Lead', '+91 98400 11223'),
+  ('00000000-0000-0000-0000-000000000004', 'Shalini', 'shalini@dwellvise.com', 'employee', 'Engineering', 'Software Engineer', '+91 98400 44556')
 ON CONFLICT (email) DO UPDATE SET 
   full_name = EXCLUDED.full_name,
   role = EXCLUDED.role,
