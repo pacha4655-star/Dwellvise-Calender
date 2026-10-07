@@ -189,12 +189,24 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
           <span>Notices</span>
         </label>
 
+        {/* Meetings Toggle */}
+        <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white border border-slate-200 rounded-lg px-2 py-1 hover:border-slate-300 text-slate-700 text-xs">
+          <input
+            type="checkbox"
+            checked={filter.showMeetings !== false}
+            onChange={(e) => onFilterChange({ showMeetings: e.target.checked })}
+            className="rounded text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+          />
+          <span>Meetings (14d/45d)</span>
+        </label>
+
         {/* Reset Filter Button */}
         {(filter.selectedUser !== 'all' ||
           filter.selectedLeaveType !== 'all' ||
           filter.selectedStatus !== 'all' ||
           !filter.showHolidays ||
           !filter.showMentions ||
+          filter.showMeetings === false ||
           filter.searchQuery !== '') && (
           <button
             onClick={() =>
@@ -204,6 +216,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                 selectedStatus: 'all',
                 showHolidays: true,
                 showMentions: true,
+                showMeetings: true,
                 searchQuery: '',
               })
             }

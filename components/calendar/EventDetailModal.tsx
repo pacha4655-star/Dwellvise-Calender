@@ -258,8 +258,83 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
         </div>
       )}
 
-      {/* 3. LEAVE REQUEST */}
-      {!isHoliday && !isMention && (
+      {/* 3. RECURRING ADMIN MEETING (TACTICAL / STRATEGIC) */}
+      {event.type === 'meeting' && (
+        <div className="space-y-4">
+          <div className={`flex items-center justify-between p-4 rounded-xl border ${
+            event.meetingType === 'tactical'
+              ? 'bg-sky-50 border-sky-200 text-sky-950'
+              : 'bg-purple-50 border-purple-200 text-purple-950'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm text-white font-bold ${
+                event.meetingType === 'tactical' ? 'bg-sky-600' : 'bg-purple-600'
+              }`}>
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-slate-900">{event.title}</h4>
+                <p className={`text-xs font-semibold ${
+                  event.meetingType === 'tactical' ? 'text-sky-700' : 'text-purple-700'
+                }`}>
+                  {event.meetingType === 'tactical' ? 'Tactical Meeting • Every 14 Days' : 'Strategic Meeting • Every 45 Days'}
+                </p>
+              </div>
+            </div>
+            <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border ${
+              event.meetingType === 'tactical'
+                ? 'bg-sky-100 text-sky-800 border-sky-300'
+                : 'bg-purple-100 text-purple-800 border-purple-300'
+            }`}>
+              {event.meetingType === 'tactical' ? '14-Day Cycle' : '45-Day Cycle'}
+            </span>
+          </div>
+
+          {/* Conflict Indicator Banner if Shifted */}
+          {event.isShiftedMeeting && (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-2.5 text-xs">
+              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block text-amber-900">Meeting Date Automatically Rescheduled</span>
+                <p className="mt-0.5 text-amber-800 leading-relaxed font-medium">
+                  {event.meetingShiftReason || 'Moved to the next working day due to conflict.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+            <div>
+              <span className="text-slate-400 font-medium">Actual Meeting Date:</span>
+              <p className="font-bold text-slate-900 mt-0.5">{formatDisplayDate(event.startDate)}</p>
+            </div>
+            <div>
+              <span className="text-slate-400 font-medium">Meeting Time:</span>
+              <p className="font-semibold text-slate-800 mt-0.5">{event.meetingTime || '10:00 AM - 11:00 AM'}</p>
+            </div>
+          </div>
+
+          {event.description && (
+            <div>
+              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-1">
+                Agenda & Description
+              </span>
+              <div className="p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 leading-relaxed">
+                {event.description}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end pt-3 border-t border-slate-100">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. LEAVE REQUEST */}
+      {!isHoliday && !isMention && event.type !== 'meeting' && (
         <div className="space-y-4">
           {/* Header Card */}
           <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">

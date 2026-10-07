@@ -96,7 +96,42 @@ export interface LeaveBalance {
   emergency_leave_used: number;
 }
 
-export type CalendarEventType = 'holiday' | 'leave' | 'mention';
+export type MeetingType = 'tactical' | 'strategic';
+
+export interface MeetingSchedule {
+  id: string;
+  meeting_type: MeetingType;
+  title: string;
+  frequency_days: number; // 14 for tactical, 45 for strategic
+  first_meeting_date: string; // YYYY-MM-DD
+  meeting_time?: string;
+  description?: string;
+  is_active: boolean;
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CalculatedMeetingOccurrence {
+  id: string;
+  schedule_id: string;
+  meeting_type: MeetingType;
+  title: string;
+  meeting_time?: string;
+  description?: string;
+  cycle_index: number;
+  calculated_date: string; // YYYY-MM-DD (unshifted)
+  actual_date: string;     // YYYY-MM-DD (resolved after Sunday/Leave shifts)
+  is_shifted: boolean;
+  shift_reason?: string;
+  conflict_details?: {
+    type: 'sunday' | 'leave' | 'multiple';
+    description: string;
+    conflictingEmployeeNames?: string[];
+  };
+}
+
+export type CalendarEventType = 'holiday' | 'leave' | 'mention' | 'meeting';
 
 export interface CalendarEvent {
   id: string;
@@ -117,9 +152,15 @@ export interface CalendarEvent {
   description?: string;
   isOwnLeave?: boolean;
   manualEventType?: ManualEventType;
+  // Meeting properties
+  meetingType?: MeetingType;
+  meetingTime?: string;
+  isShiftedMeeting?: boolean;
+  meetingShiftReason?: string;
   rawLeave?: LeaveRequest;
   rawHoliday?: GovernmentHoliday;
   rawMention?: ManualCalendarEvent;
+  rawMeeting?: CalculatedMeetingOccurrence;
 }
 
 export interface CalendarFilter {
@@ -129,6 +170,7 @@ export interface CalendarFilter {
   selectedStatus: string; // 'all' | LeaveStatus
   showHolidays: boolean;
   showMentions: boolean;
+  showMeetings?: boolean;
 }
 
 export type NotificationType =

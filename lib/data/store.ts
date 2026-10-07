@@ -10,12 +10,17 @@ import {
   ReportSummary,
   LeaveType,
   ManualEventType,
+  MeetingSchedule,
+  CalculatedMeetingOccurrence,
+  MeetingType,
 } from '@/types';
 import { INITIAL_USERS } from './initial-users';
 import { INITIAL_HOLIDAYS } from './holidays-data';
 import { INITIAL_LEAVES } from './initial-leaves';
 import { INITIAL_MENTIONS } from './initial-mentions';
+import { INITIAL_MEETING_SCHEDULES } from './initial-meetings';
 import { calculateDaysCount, calculateWorkingDays, formatDisplayDate } from '@/lib/utils/date-utils';
+import { calculateScheduleOccurrences, getNextUpcomingMeeting } from '@/lib/meetings/meeting-scheduler';
 import { isSupabaseConfigured, getSupabaseClient } from '@/lib/supabase/client';
 
 const STORAGE_KEY_USERS = 'officeflow_dwellvise_users_v3';
@@ -23,6 +28,7 @@ const STORAGE_KEY_LEAVES = 'officeflow_dwellvise_leaves_v3';
 const STORAGE_KEY_HOLIDAYS = 'officeflow_dwellvise_holidays_v3';
 const STORAGE_KEY_MENTIONS = 'officeflow_dwellvise_mentions_v3';
 const STORAGE_KEY_NOTIFICATIONS = 'officeflow_dwellvise_notifications_v3';
+const STORAGE_KEY_MEETINGS = 'officeflow_dwellvise_meetings_v3';
 
 export function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -41,6 +47,7 @@ let memoryLeaves: LeaveRequest[] = [...INITIAL_LEAVES];
 let memoryHolidays: GovernmentHoliday[] = [...INITIAL_HOLIDAYS];
 let memoryMentions: ManualCalendarEvent[] = [...INITIAL_MENTIONS];
 let memoryNotifications: AppNotification[] = [];
+let memoryMeetingSchedules: MeetingSchedule[] = [...INITIAL_MEETING_SCHEDULES];
 
 type Listener = () => void;
 const listeners: Set<Listener> = new Set();
@@ -141,6 +148,17 @@ async function safeFetchNotifications(): Promise<AppNotification[] | null> {
   }
 }
 
+async function safeFetchMeetingSchedules(): Promise<MeetingSchedule[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  try {
+    const res = await client.from('meeting_schedules').select('*');
+    return (res.data as MeetingSchedule[]) || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured() || isSyncing) {
     return { success: false, error: 'Supabase not configured or already syncing' };
@@ -150,12 +168,13 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
   syncError = null;
 
   try {
-    const [profilesData, leavesData, holidaysData, mentionsData, notifsData] = await Promise.all([
+    const [profilesData, leavesData, holidaysData, mentionsData, notifsData, meetingsData] = await Promise.all([
       withTimeout(safeFetchProfiles(), 4000, null),
       withTimeout(safeFetchLeaves(), 4000, null),
       withTimeout(safeFetchHolidays(), 4000, null),
       withTimeout(safeFetchMentions(), 4000, null),
       withTimeout(safeFetchNotifications(), 4000, null),
+      withTimeout(safeFetchMeetingSchedules(), 4000, null),
     ]);
 
     let hasUpdates = false;
@@ -198,6 +217,20 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
       const fetchedIds = new Set(notifsData.map((n) => n.id));
       const remainingMemory = memoryNotifications.filter((n) => !fetchedIds.has(n.id));
       memoryNotifications = [...notifsData, ...remainingMemory];
+      hasUpdates = true;
+    }
+
+    if (meetingsData && meetingsData.length > 0) {
+      const merged = [...memoryMeetingSchedules];
+      meetingsData.forEach((dbM) => {
+        const idx = merged.findIndex((m) => m.meeting_type === dbM.meeting_type || m.id === dbM.id);
+        if (idx !== -1) {
+          merged[idx] = { ...merged[idx], ...dbM };
+        } else {
+          merged.push(dbM);
+        }
+      });
+      memoryMeetingSchedules = merged;
       hasUpdates = true;
     }
 
@@ -380,6 +413,19 @@ export function initializeStore() {
     if (storedNotifications) {
       memoryNotifications = JSON.parse(storedNotifications);
     }
+
+    const storedMeetings = localStorage.getItem(STORAGE_KEY_MEETINGS);
+    if (storedMeetings) {
+      const parsedMeetings = JSON.parse(storedMeetings) as MeetingSchedule[];
+      const mergedMeetings = [...parsedMeetings];
+      INITIAL_MEETING_SCHEDULES.forEach((initM) => {
+        const exists = mergedMeetings.some((m) => m.meeting_type === initM.meeting_type);
+        if (!exists) mergedMeetings.push(initM);
+      });
+      memoryMeetingSchedules = mergedMeetings;
+    } else {
+      localStorage.setItem(STORAGE_KEY_MEETINGS, JSON.stringify(INITIAL_MEETING_SCHEDULES));
+    }
   } catch (err) {
     console.warn('Error reading from localStorage:', err);
   }
@@ -399,6 +445,7 @@ function persistStore() {
     localStorage.setItem(STORAGE_KEY_HOLIDAYS, JSON.stringify(memoryHolidays));
     localStorage.setItem(STORAGE_KEY_MENTIONS, JSON.stringify(memoryMentions));
     localStorage.setItem(STORAGE_KEY_NOTIFICATIONS, JSON.stringify(memoryNotifications));
+    localStorage.setItem(STORAGE_KEY_MEETINGS, JSON.stringify(memoryMeetingSchedules));
   } catch (err) {
     console.warn('Error saving to localStorage:', err);
   }
@@ -729,7 +776,153 @@ export function getCalendarEvents(
     });
   });
 
+  // 4. Add Calculated Tactical & Strategic Meetings
+  if (filter?.showMeetings !== false) {
+    const meetingOccurrences = getAllCalculatedMeetingOccurrences();
+    meetingOccurrences.forEach((occurrence) => {
+      if (filter?.searchQuery) {
+        const query = filter.searchQuery.toLowerCase();
+        const t = occurrence.title.toLowerCase();
+        const d = (occurrence.description || '').toLowerCase();
+        const typeStr = occurrence.meeting_type.toLowerCase();
+        if (!t.includes(query) && !d.includes(query) && !typeStr.includes(query)) {
+          return;
+        }
+      }
+
+      events.push({
+        id: `event-${occurrence.id}`,
+        type: 'meeting',
+        title: occurrence.title,
+        startDate: occurrence.actual_date,
+        endDate: occurrence.actual_date,
+        meetingType: occurrence.meeting_type,
+        meetingTime: occurrence.meeting_time,
+        isShiftedMeeting: occurrence.is_shifted,
+        meetingShiftReason: occurrence.shift_reason,
+        description: occurrence.description,
+        rawMeeting: occurrence,
+      });
+    });
+  }
+
   return events;
+}
+
+// ==============================================================================
+// MEETING SCHEDULES (TACTICAL & STRATEGIC RECURRING MANAGEMENT)
+// ==============================================================================
+
+export function getMeetingSchedules(): MeetingSchedule[] {
+  return [...memoryMeetingSchedules];
+}
+
+export function getMeetingScheduleByType(type: MeetingType): MeetingSchedule | undefined {
+  return memoryMeetingSchedules.find((m) => m.meeting_type === type);
+}
+
+export function getAllCalculatedMeetingOccurrences(
+  rangeStart: string = '2026-10-01',
+  rangeEnd: string = '2027-12-31'
+): CalculatedMeetingOccurrence[] {
+  const leaves = getLeaves();
+  const occurrences: CalculatedMeetingOccurrence[] = [];
+
+  memoryMeetingSchedules.forEach((schedule) => {
+    if (schedule.is_active) {
+      const scheduleOccurrences = calculateScheduleOccurrences(schedule, leaves, rangeStart, rangeEnd, 100);
+      occurrences.push(...scheduleOccurrences);
+    }
+  });
+
+  return occurrences.sort((a, b) => a.actual_date.localeCompare(b.actual_date));
+}
+
+export function getUpcomingMeetingOccurrences(referenceDate: string = '2026-10-01') {
+  const leaves = getLeaves();
+  const tacticalSchedule = memoryMeetingSchedules.find((m) => m.meeting_type === 'tactical');
+  const strategicSchedule = memoryMeetingSchedules.find((m) => m.meeting_type === 'strategic');
+
+  const tacticalNext = tacticalSchedule && tacticalSchedule.is_active
+    ? getNextUpcomingMeeting(tacticalSchedule, leaves, referenceDate)
+    : null;
+
+  const strategicNext = strategicSchedule && strategicSchedule.is_active
+    ? getNextUpcomingMeeting(strategicSchedule, leaves, referenceDate)
+    : null;
+
+  const allUpcoming = getAllCalculatedMeetingOccurrences(referenceDate, '2027-12-31');
+
+  return {
+    tactical: tacticalNext,
+    strategic: strategicNext,
+    list: allUpcoming.slice(0, 8),
+  };
+}
+
+export async function updateMeetingSchedule(
+  type: MeetingType,
+  updates: Partial<MeetingSchedule>
+): Promise<{ success: boolean; message: string; schedule?: MeetingSchedule }> {
+  const idx = memoryMeetingSchedules.findIndex((m) => m.meeting_type === type);
+  if (idx === -1) {
+    return { success: false, message: `Meeting schedule ${type} not found.` };
+  }
+
+  const nowIso = new Date().toISOString();
+  const updatedSchedule: MeetingSchedule = {
+    ...memoryMeetingSchedules[idx],
+    ...updates,
+    updated_at: nowIso,
+  };
+
+  memoryMeetingSchedules[idx] = updatedSchedule;
+  persistStore();
+
+  const client = getSupabaseClient();
+  if (isSupabaseConfigured() && client) {
+    try {
+      const { error } = await client
+        .from('meeting_schedules')
+        .upsert(
+          {
+            id: updatedSchedule.id,
+            meeting_type: updatedSchedule.meeting_type,
+            title: updatedSchedule.title,
+            frequency_days: updatedSchedule.frequency_days,
+            first_meeting_date: updatedSchedule.first_meeting_date,
+            meeting_time: updatedSchedule.meeting_time,
+            description: updatedSchedule.description,
+            is_active: updatedSchedule.is_active,
+            updated_at: nowIso,
+          },
+          { onConflict: 'meeting_type' }
+        );
+
+      if (error) {
+        console.warn('Supabase meeting_schedules upsert error:', error.message);
+      }
+    } catch (err) {
+      console.warn('Supabase meeting_schedules sync failed:', err);
+    }
+  }
+
+  return {
+    success: true,
+    message: `${updatedSchedule.title} schedule updated successfully.`,
+    schedule: updatedSchedule,
+  };
+}
+
+export async function toggleMeetingScheduleActive(
+  type: MeetingType
+): Promise<{ success: boolean; message: string; schedule?: MeetingSchedule }> {
+  const schedule = getMeetingScheduleByType(type);
+  if (!schedule) {
+    return { success: false, message: 'Meeting schedule not found.' };
+  }
+  const newActive = !schedule.is_active;
+  return updateMeetingSchedule(type, { is_active: newActive });
 }
 
 // ==============================================================================
@@ -1443,6 +1636,7 @@ export function getDashboardKPIs(todayDateStr: string = '2026-10-01') {
   const pendingRequests = memoryLeaves.filter((l) => l.status === 'pending');
   const upcomingHolidays = memoryHolidays.filter((h) => h.date >= todayDateStr);
   const upcomingMentions = memoryMentions.filter((m) => m.start_date >= todayDateStr);
+  const upcomingMeetings = getUpcomingMeetingOccurrences(todayDateStr);
 
   return {
     totalEmployees,
@@ -1460,6 +1654,7 @@ export function getDashboardKPIs(todayDateStr: string = '2026-10-01') {
     upcomingHolidaysList: upcomingHolidays.slice(0, 5),
     upcomingMentionsCount: upcomingMentions.length,
     upcomingMentionsList: upcomingMentions.slice(0, 4),
+    upcomingMeetings,
   };
 }
 

@@ -56,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onApplyLeaveClick, onCloseMobi
       icon: ClipboardList,
       badge: pendingCount > 0 ? pendingCount : undefined,
     },
+    { label: 'Meeting Schedules', href: '/admin/meetings', icon: CalendarCheck2 },
     { label: 'Employees', href: '/admin/employees', icon: UserCheck },
     { label: 'Manage Holidays', href: '/admin/holidays', icon: Flag },
     { label: 'Reports & Analytics', href: '/admin/reports', icon: BarChart3 },

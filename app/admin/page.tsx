@@ -429,6 +429,98 @@ export default function AdminDashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* 3. Upcoming Meeting Cadence Section */}
+        {kpiData.upcomingMeetings && (
+          <Card className="border border-slate-200 shadow-sm">
+            <CardHeader
+              title="Recurring Meeting Schedule"
+              subtitle="Dynamic Tactical (14d) & Strategic (45d) Cadence"
+              action={
+                <Link href="/admin/meetings" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
+                  Manage Schedules →
+                </Link>
+              }
+            />
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Next Tactical */}
+                <div className="p-3.5 rounded-xl bg-sky-50/60 border border-sky-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-xs">
+                        🔵
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs text-sky-950">Tactical Meeting</p>
+                        <p className="text-[10px] text-sky-700">14-Day Cycle</p>
+                      </div>
+                    </div>
+                    {kpiData.upcomingMeetings.tactical?.is_shifted ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900">
+                        Shifted
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-200/80 text-sky-900">
+                        On Track
+                      </span>
+                    )}
+                  </div>
+                  <div className="pt-1 flex items-baseline justify-between">
+                    <span className="text-xs text-slate-500 font-medium">Next Occurrence:</span>
+                    <span className="text-sm font-extrabold text-slate-900">
+                      {kpiData.upcomingMeetings.tactical
+                        ? formatDisplayDate(kpiData.upcomingMeetings.tactical.actual_date)
+                        : 'Not Scheduled'}
+                    </span>
+                  </div>
+                  {kpiData.upcomingMeetings.tactical?.is_shifted && (
+                    <p className="text-[10px] text-amber-800 font-medium pt-1 border-t border-sky-200/60">
+                      {kpiData.upcomingMeetings.tactical.shift_reason}
+                    </p>
+                  )}
+                </div>
+
+                {/* Next Strategic */}
+                <div className="p-3.5 rounded-xl bg-purple-50/60 border border-purple-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs">
+                        🟣
+                      </div>
+                      <div>
+                        <p className="font-bold text-xs text-purple-950">Strategic Meeting</p>
+                        <p className="text-[10px] text-purple-700">45-Day Cycle</p>
+                      </div>
+                    </div>
+                    {kpiData.upcomingMeetings.strategic?.is_shifted ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200 text-amber-900">
+                        Shifted
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-200/80 text-purple-900">
+                        On Track
+                      </span>
+                    )}
+                  </div>
+                  <div className="pt-1 flex items-baseline justify-between">
+                    <span className="text-xs text-slate-500 font-medium">Next Occurrence:</span>
+                    <span className="text-sm font-extrabold text-slate-900">
+                      {kpiData.upcomingMeetings.strategic
+                        ? formatDisplayDate(kpiData.upcomingMeetings.strategic.actual_date)
+                        : 'Not Scheduled'}
+                    </span>
+                  </div>
+                  {kpiData.upcomingMeetings.strategic?.is_shifted && (
+                    <p className="text-[10px] text-amber-800 font-medium pt-1 border-t border-purple-200/60">
+                      {kpiData.upcomingMeetings.strategic.shift_reason}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );

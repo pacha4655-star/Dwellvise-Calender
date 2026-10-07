@@ -33,6 +33,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
 }) => {
   const holidays = events.filter((e) => e.type === 'holiday');
   const mentions = events.filter((e) => e.type === 'mention');
+  const meetings = events.filter((e) => e.type === 'meeting');
   const leaves = events.filter((e) => e.type === 'leave');
 
   const hasHoliday = holidays.length > 0;
@@ -82,7 +83,7 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
         )}
       </div>
 
-      {/* Events Container (Ordered by Priority: 1. Holiday -> 2. Mention -> 3. Leave) */}
+      {/* Events Container (Ordered: 1. Holiday -> 2. Mention -> 3. Recurring Meetings -> 4. Leave) */}
       <div className="flex-1 space-y-0.5 sm:space-y-1 overflow-hidden">
         {/* 1. Government Holidays (Unified Soft Red badge) */}
         {holidays.map((holiday) => (
@@ -116,7 +117,45 @@ export const CalendarDayCell: React.FC<CalendarDayCellProps> = ({
           </div>
         ))}
 
-        {/* 3. Approved Leaves with show_on_calendar = true */}
+        {/* 3. Recurring Admin Meetings (Tactical: Blue 🔵 / Strategic: Purple 🟣) */}
+        {meetings.map((meeting) => {
+          const isTactical = meeting.meetingType === 'tactical';
+          const badgeStyle = isTactical
+            ? 'bg-sky-50/90 border-sky-300 text-sky-950 hover:bg-sky-100'
+            : 'bg-purple-50/90 border-purple-300 text-purple-950 hover:bg-purple-100';
+          const dotColor = isTactical ? 'bg-sky-600' : 'bg-purple-600';
+
+          return (
+            <div
+              key={meeting.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEventClick(meeting);
+              }}
+              title={`${meeting.title} (${isTactical ? 'Every 14 days' : 'Every 45 days'})${
+                meeting.isShiftedMeeting ? ` - ${meeting.meetingShiftReason}` : ''
+              }`}
+              className={`flex items-center justify-between gap-0.5 sm:gap-1 px-0.5 xs:px-1 sm:px-1.5 py-0.5 rounded sm:rounded-md border text-[8px] xs:text-[9px] sm:text-[11px] font-semibold leading-tight truncate transition-colors shadow-subtle cursor-pointer ${badgeStyle}`}
+            >
+              <div className="flex items-center gap-1 min-w-0 truncate">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
+                <span className="truncate">
+                  {meeting.title}
+                </span>
+              </div>
+              {meeting.isShiftedMeeting && (
+                <span
+                  className="text-[7px] sm:text-[8px] px-1 py-0.2 rounded bg-amber-200/80 text-amber-900 font-bold flex-shrink-0"
+                  title={meeting.meetingShiftReason}
+                >
+                  Shifted
+                </span>
+              )}
+            </div>
+          );
+        })}
+
+        {/* 4. Approved Leaves with show_on_calendar = true */}
         {leaves.map((leave) => {
           const isOwn = leave.isOwnLeave;
           const styleClasses = isOwn

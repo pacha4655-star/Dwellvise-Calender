@@ -13,6 +13,16 @@ export const CalendarLegend: React.FC = () => {
       dot: 'bg-indigo-600',
     },
     {
+      label: 'Tactical Meeting (14d)',
+      color: 'bg-sky-100 border-sky-300 text-sky-800',
+      dot: 'bg-sky-600',
+    },
+    {
+      label: 'Strategic Meeting (45d)',
+      color: 'bg-purple-100 border-purple-300 text-purple-800',
+      dot: 'bg-purple-600',
+    },
+    {
       label: 'My Leave',
       color: 'bg-purple-100 border-purple-300 text-purple-800',
       dot: 'bg-purple-600',

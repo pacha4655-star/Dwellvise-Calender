@@ -97,6 +97,22 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- 7. Meeting Schedules Table (Tactical: 14 days, Strategic: 45 days)
+CREATE TABLE IF NOT EXISTS public.meeting_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  meeting_type TEXT NOT NULL CHECK (meeting_type IN ('tactical', 'strategic')),
+  title TEXT NOT NULL,
+  frequency_days INT NOT NULL CHECK (frequency_days > 0),
+  first_meeting_date DATE NOT NULL,
+  meeting_time TEXT DEFAULT '10:00 AM - 11:00 AM',
+  description TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT uq_meeting_schedules_type UNIQUE (meeting_type)
+);
+
 -- ==============================================================================
 -- INDEXES
 -- ==============================================================================
@@ -151,6 +167,15 @@ ALTER TABLE public.holidays ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leave_balances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meeting_schedules ENABLE ROW LEVEL SECURITY;
+
+-- Meeting Schedules Policies
+CREATE POLICY "Meeting schedules are readable by all authenticated users"
+  ON public.meeting_schedules FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Only admins can manage meeting schedules"
+  ON public.meeting_schedules FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin'));
 
 -- Profiles Policies
 CREATE POLICY "Public profiles are viewable by authenticated users"
