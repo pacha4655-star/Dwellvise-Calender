@@ -269,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 1. If Supabase Auth is configured, authenticate via official browser signInWithPassword
     if (isSupabaseConfigured() && client) {
       try {
+        console.log('[OfficeFlow Auth] Attempting signInWithPassword for:', targetEmail);
         const { data: authData, error: authError } = await client.auth.signInWithPassword({
           email: targetEmail,
           password: cleanPassword,
@@ -277,6 +278,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (authError) {
           setIsLoading(false);
           const rawMsg = (authError.message || '').toLowerCase();
+          console.warn('[OfficeFlow Auth] Supabase auth rejection:', {
+            status: authError.status,
+            name: authError.name,
+            message: authError.message,
+          });
           
           if (
             rawMsg.includes('invalid login credentials') ||
@@ -317,8 +323,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const authUser = authData?.user;
         if (authUser) {
+          console.log('[OfficeFlow Auth] Supabase auth verified. Auth User ID:', authUser.id);
           // Look up user profile from public.profiles using authenticatedUser.id (or email fallback)
           const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
+          console.log('[OfficeFlow Auth] Profile lookup result:', dbProfile ? { id: dbProfile.id, role: dbProfile.role, is_active: dbProfile.is_active } : 'NOT FOUND IN DB');
 
           if (dbProfile) {
             if (dbProfile.is_active === false) {
@@ -368,6 +376,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err: unknown) {
         setIsLoading(false);
         const msg = err instanceof Error ? err.message : 'Network error connecting to authentication server';
+        console.error('[OfficeFlow Auth] Unexpected error during login:', err);
         return {
           success: false,
           message: msg,
