@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
             if (dbProfile) {
               if (dbProfile.is_active === false) {
-                setAuthError('This employee account is deactivated. Contact office admin.');
+                setAuthError('Your OfficeFlow account is inactive. Please contact an administrator.');
                 setUser(null);
                 setIsLoading(false);
                 return;
@@ -137,12 +137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return;
             }
 
-            // Fallback match in loaded users by ID
-            const matched = currentUsers.find((u) => u.id === authUser.id);
+            // Fallback match in loaded users by ID or email
+            const matched = currentUsers.find((u) => u.id === authUser.id || u.email.toLowerCase() === (authUser.email || '').toLowerCase());
 
             if (matched) {
               if (matched.is_active === false) {
-                setAuthError('This employee account is deactivated. Contact office admin.');
+                setAuthError('Your OfficeFlow account is inactive. Please contact an administrator.');
                 setUser(null);
                 setIsLoading(false);
                 return;
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             // Authenticated in Supabase but no matching profile in database
             setAuthError(
-              'Your account is authenticated, but your OfficeFlow profile is not configured. Please contact the administrator.'
+              'Your account is authenticated, but your OfficeFlow profile is not configured. Please contact an administrator.'
             );
             setUser(null);
             setIsLoading(false);
@@ -253,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setAuthError(null);
     const targetEmail = email.trim().toLowerCase();
+    // DO NOT trim or modify password - send exactly as entered
     const cleanPassword = password || '';
 
     if (!targetEmail || !cleanPassword) {
@@ -275,15 +276,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (authError) {
           setIsLoading(false);
+          const rawMsg = (authError.message || '').toLowerCase();
+          
+          if (
+            rawMsg.includes('invalid login credentials') ||
+            rawMsg.includes('invalid credentials') ||
+            rawMsg.includes('invalid email or password') ||
+            rawMsg.includes('invalid grant') ||
+            rawMsg.includes('user not found')
+          ) {
+            return {
+              success: false,
+              message: 'Invalid email or password.',
+            };
+          }
+          if (rawMsg.includes('email not confirmed')) {
+            return {
+              success: false,
+              message: 'Email address has not been confirmed. Please check your inbox or contact an administrator.',
+            };
+          }
+          if (rawMsg.includes('too many requests') || rawMsg.includes('rate limit')) {
+            return {
+              success: false,
+              message: 'Too many login attempts. Please wait a moment before trying again.',
+            };
+          }
+          if (rawMsg.includes('fetch') || rawMsg.includes('network') || rawMsg.includes('failed to fetch')) {
+            return {
+              success: false,
+              message: 'Network error connecting to authentication server. Please check your internet connection.',
+            };
+          }
+
           return {
             success: false,
-            message: authError.message || 'Invalid login credentials',
+            message: authError.message || 'Invalid email or password.',
           };
         }
 
         const authUser = authData?.user;
         if (authUser) {
-          // Look up user profile from public.profiles using authenticatedUser.id
+          // Look up user profile from public.profiles using authenticatedUser.id (or email fallback)
           const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
 
           if (dbProfile) {
@@ -291,28 +325,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setIsLoading(false);
               return {
                 success: false,
-                message: 'This employee account is deactivated. Contact office admin.',
+                message: 'Your OfficeFlow account is inactive. Please contact an administrator.',
               };
             }
 
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('officeflow_active_user_id', dbProfile.id);
+            }
             setUser(dbProfile);
             setIsLoading(false);
             return { success: true, message: `Welcome back, ${dbProfile.full_name}!` };
           }
 
-          // Check fallback match by ID in store
+          // Check fallback match by ID in local store
           const currentUsers = getUsers();
-          const matched = currentUsers.find((u) => u.id === authUser.id);
+          const matched = currentUsers.find((u) => u.id === authUser.id || u.email.toLowerCase() === targetEmail);
 
           if (matched) {
             if (matched.is_active === false) {
               setIsLoading(false);
               return {
                 success: false,
-                message: 'This employee account is deactivated. Contact office admin.',
+                message: 'Your OfficeFlow account is inactive. Please contact an administrator.',
               };
             }
 
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('officeflow_active_user_id', matched.id);
+            }
             setUser(matched);
             setIsLoading(false);
             return { success: true, message: `Welcome back, ${matched.full_name}!` };
@@ -322,7 +362,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return {
             success: false,
             message:
-              'Your account is authenticated, but your OfficeFlow profile is not configured. Please contact the administrator.',
+              'Your account is authenticated, but your OfficeFlow profile is not configured. Please contact an administrator.',
           };
         }
       } catch (err: unknown) {
@@ -343,7 +383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return {
         success: false,
-        message: 'Invalid login credentials. No account found with this email address.',
+        message: 'Invalid email or password.',
       };
     }
 
@@ -351,7 +391,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return {
         success: false,
-        message: 'This employee account is deactivated. Contact office admin.',
+        message: 'Your OfficeFlow account is inactive. Please contact an administrator.',
       };
     }
 

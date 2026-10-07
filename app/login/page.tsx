@@ -50,8 +50,8 @@ export default function LoginPage() {
         success(result.message, 'Signed In');
         router.push('/calendar');
       } else {
-        setErrorMsg(result.message || 'Invalid login credentials');
-        toastError(result.message || 'Invalid login credentials', 'Authentication Failed');
+        setErrorMsg(result.message || 'Invalid email or password.');
+        toastError(result.message || 'Invalid email or password.', 'Authentication Failed');
         setPassword('');
       }
     } catch (err: unknown) {
