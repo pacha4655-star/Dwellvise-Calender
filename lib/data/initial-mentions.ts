@@ -2,7 +2,7 @@ import { ManualCalendarEvent } from '@/types';
 
 export const INITIAL_MENTIONS: ManualCalendarEvent[] = [
   {
-    id: 'mention-2026-10-001',
+    id: '00000000-0000-0000-0002-000000000001',
     title: 'Quarterly All-Hands Meeting',
     description: 'Q3 Performance Review & Product Roadmap Presentation in Conference Room A',
     start_date: '2026-10-06',
@@ -12,7 +12,7 @@ export const INITIAL_MENTIONS: ManualCalendarEvent[] = [
     created_at: '2026-10-01T09:00:00Z',
   },
   {
-    id: 'mention-2026-10-002',
+    id: '00000000-0000-0000-0002-000000000002',
     title: 'Annual Team Outing — Mahabalipuram',
     description: 'Full day team bonding, beach resort lunch, and team building activities',
     start_date: '2026-10-23',
@@ -22,3 +22,4 @@ export const INITIAL_MENTIONS: ManualCalendarEvent[] = [
     created_at: '2026-10-01T09:00:00Z',
   },
 ];
+

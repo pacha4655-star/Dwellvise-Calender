@@ -200,19 +200,23 @@ export default function AdminLeaveRequestsPage() {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                    <th className="py-3.5 px-4 sm:px-6">Employee</th>
-                    <th className="py-3.5 px-4 sm:px-6">Leave Type</th>
-                    <th className="py-3.5 px-4 sm:px-6">Dates & Days</th>
-                    <th className="py-3.5 px-4 sm:px-6">Reason (Admin View)</th>
-                    <th className="py-3.5 px-4 sm:px-6">Status</th>
-                    <th className="py-3.5 px-4 sm:px-6 text-center">Show on Calendar</th>
-                    <th className="py-3.5 px-4 sm:px-6 text-right">Approval Actions</th>
+                    <th className="py-3.5 px-3 sm:px-4">Employee</th>
+                    <th className="py-3.5 px-3 sm:px-4">Leave Type</th>
+                    <th className="py-3.5 px-3 sm:px-4">Dates & Duration</th>
+                    <th className="py-3.5 px-3 sm:px-4">Applied / Updated</th>
+                    <th className="py-3.5 px-3 sm:px-4">Reason (Admin View)</th>
+                    <th className="py-3.5 px-3 sm:px-4">Status</th>
+                    <th className="py-3.5 px-3 sm:px-4 text-center">Show on Calendar</th>
+                    <th className="py-3.5 px-3 sm:px-4 text-right">Approval Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredLeaves.map((leave) => {
                     const days = calculateDaysCount(leave.start_date, leave.end_date);
                     const isHighlighted = leave.id === highlightedId;
+                    const createdFormatted = leave.created_at ? formatDisplayDate(leave.created_at.substring(0, 10)) : '—';
+                    const updatedFormatted = leave.updated_at ? formatDisplayDate(leave.updated_at.substring(0, 10)) : createdFormatted;
+
                     return (
                       <tr
                         key={leave.id}
@@ -222,7 +226,7 @@ export default function AdminLeaveRequestsPage() {
                             : 'hover:bg-slate-50/70'
                         }`}
                       >
-                        <td className="py-4 px-4 sm:px-6 font-bold text-slate-900">
+                        <td className="py-4 px-3 sm:px-4 font-bold text-slate-900">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
                               {leave.user?.full_name ? leave.user.full_name[0] : 'U'}
@@ -236,20 +240,27 @@ export default function AdminLeaveRequestsPage() {
                           </div>
                         </td>
 
-                        <td className="py-4 px-4 sm:px-6 font-semibold text-slate-800">
+                        <td className="py-4 px-3 sm:px-4 font-semibold text-slate-800">
                           {leave.leave_type}
                         </td>
 
-                        <td className="py-4 px-4 sm:px-6 text-slate-700">
+                        <td className="py-4 px-3 sm:px-4 text-slate-700">
                           <p className="font-semibold">{formatDateRange(leave.start_date, leave.end_date)}</p>
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-slate-500 font-medium">
                             {days} {days === 1 ? 'Day' : 'Days'}
                           </span>
                         </td>
 
-                        <td className="py-4 px-4 sm:px-6 max-w-xs text-slate-700">
+                        <td className="py-4 px-3 sm:px-4 text-slate-600">
+                          <p className="font-medium text-[11px] text-slate-700">Applied: {createdFormatted}</p>
+                          {leave.updated_at && leave.updated_at !== leave.created_at && (
+                            <p className="text-[10px] text-slate-400">Updated: {updatedFormatted}</p>
+                          )}
+                        </td>
+
+                        <td className="py-4 px-3 sm:px-4 max-w-xs text-slate-700">
                           <div className="flex items-center gap-1.5">
-                            <p className="truncate font-medium" title={leave.reason}>
+                            <p className="truncate font-medium max-w-[160px]" title={leave.reason}>
                               {leave.reason}
                             </p>
                             <button
@@ -262,12 +273,12 @@ export default function AdminLeaveRequestsPage() {
                           </div>
                         </td>
 
-                        <td className="py-4 px-4 sm:px-6">
+                        <td className="py-4 px-3 sm:px-4">
                           <StatusBadge status={leave.status} />
                         </td>
 
                         {/* SHOW ON CALENDAR TOGGLE */}
-                        <td className="py-4 px-4 sm:px-6 text-center">
+                        <td className="py-4 px-3 sm:px-4 text-center">
                           {leave.status === 'approved' ? (
                             <div className="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                               <button
@@ -302,7 +313,7 @@ export default function AdminLeaveRequestsPage() {
                           )}
                         </td>
 
-                        <td className="py-4 px-4 sm:px-6 text-right">
+                        <td className="py-4 px-3 sm:px-4 text-right">
                           {leave.status === 'pending' ? (
                             <div className="flex items-center justify-end gap-1.5">
                               <Button
@@ -355,6 +366,9 @@ export default function AdminLeaveRequestsPage() {
               filteredLeaves.map((leave) => {
                 const days = calculateDaysCount(leave.start_date, leave.end_date);
                 const isHighlighted = leave.id === highlightedId;
+                const createdFormatted = leave.created_at ? formatDisplayDate(leave.created_at.substring(0, 10)) : '—';
+                const updatedFormatted = leave.updated_at ? formatDisplayDate(leave.updated_at.substring(0, 10)) : createdFormatted;
+
                 return (
                   <div
                     key={leave.id}
@@ -386,6 +400,16 @@ export default function AdminLeaveRequestsPage() {
                         <span className="text-slate-400">Duration:</span>
                         <span className="font-semibold text-slate-800">{days} {days === 1 ? 'day' : 'days'}</span>
                       </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">Applied:</span>
+                        <span className="text-slate-600">{createdFormatted}</span>
+                      </div>
+                      {leave.updated_at && leave.updated_at !== leave.created_at && (
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400">Updated:</span>
+                          <span className="text-slate-600">{updatedFormatted}</span>
+                        </div>
+                      )}
                       {leave.reason && (
                         <div className="pt-1 border-t border-slate-200/60 mt-1">
                           <span className="text-[10px] uppercase font-bold text-slate-400 block">Reason:</span>
@@ -518,6 +542,7 @@ export default function AdminLeaveRequestsPage() {
               <div>
                 <p className="font-bold text-sm text-slate-900">{selectedLeave.user?.full_name}</p>
                 <p className="text-slate-500">{selectedLeave.user?.email}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{selectedLeave.user?.department} • {selectedLeave.user?.designation}</p>
               </div>
               <StatusBadge status={selectedLeave.status} size="md" />
             </div>
@@ -533,11 +558,35 @@ export default function AdminLeaveRequestsPage() {
                   {formatDateRange(selectedLeave.start_date, selectedLeave.end_date)}
                 </p>
               </div>
+              <div>
+                <span className="text-slate-400 font-medium">Leave Days:</span>
+                <p className="font-bold text-slate-900 mt-0.5">
+                  {calculateDaysCount(selectedLeave.start_date, selectedLeave.end_date)} {calculateDaysCount(selectedLeave.start_date, selectedLeave.end_date) === 1 ? 'Day' : 'Days'}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Show on Calendar:</span>
+                <p className={`font-bold mt-0.5 ${selectedLeave.show_on_calendar ? 'text-emerald-700' : 'text-slate-500'}`}>
+                  {selectedLeave.show_on_calendar ? 'ON (Visible)' : 'OFF (Hidden)'}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Created Date:</span>
+                <p className="font-bold text-slate-700 mt-0.5">
+                  {selectedLeave.created_at ? formatDisplayDate(selectedLeave.created_at.substring(0, 10)) : '—'}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-400 font-medium">Updated Date:</span>
+                <p className="font-bold text-slate-700 mt-0.5">
+                  {selectedLeave.updated_at ? formatDisplayDate(selectedLeave.updated_at.substring(0, 10)) : (selectedLeave.created_at ? formatDisplayDate(selectedLeave.created_at.substring(0, 10)) : '—')}
+                </p>
+              </div>
             </div>
 
             <div>
               <span className="font-semibold text-slate-700 uppercase tracking-wider block mb-1">
-                Full Confidential Reason:
+                Private Leave Reason (Admin View):
               </span>
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 leading-relaxed text-slate-800">
                 {selectedLeave.reason}

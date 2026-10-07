@@ -24,6 +24,17 @@ const STORAGE_KEY_HOLIDAYS = 'officeflow_dwellvise_holidays_v3';
 const STORAGE_KEY_MENTIONS = 'officeflow_dwellvise_mentions_v3';
 const STORAGE_KEY_NOTIFICATIONS = 'officeflow_dwellvise_notifications_v3';
 
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // In-Memory State
 let memoryUsers: UserProfile[] = [...INITIAL_USERS];
 let memoryLeaves: LeaveRequest[] = [...INITIAL_LEAVES];
@@ -70,7 +81,7 @@ async function safeFetchLeaves(): Promise<LeaveRequest[] | null> {
   const client = getSupabaseClient();
   if (!client) return null;
   try {
-    const res = await client.from('leave_requests').select('*');
+    const res = await client.from('leave_requests').select('*').order('created_at', { ascending: false });
     return (res.data as LeaveRequest[]) || null;
   } catch {
     return null;
@@ -150,12 +161,25 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
     let hasUpdates = false;
 
     if (profilesData && profilesData.length > 0) {
-      memoryUsers = profilesData;
+      // Merge profiles ensuring initial structure is preserved
+      const merged = [...memoryUsers];
+      profilesData.forEach((dbUser) => {
+        const idx = merged.findIndex((u) => u.id === dbUser.id || u.email.toLowerCase() === dbUser.email.toLowerCase());
+        if (idx !== -1) {
+          merged[idx] = { ...merged[idx], ...dbUser };
+        } else {
+          merged.push(dbUser);
+        }
+      });
+      memoryUsers = merged;
       hasUpdates = true;
     }
 
     if (leavesData) {
-      memoryLeaves = leavesData;
+      // Merge leaves: update existing and add newly fetched
+      const fetchedIds = new Set(leavesData.map((l) => l.id));
+      const remainingMemory = memoryLeaves.filter((l) => !fetchedIds.has(l.id));
+      memoryLeaves = [...leavesData, ...remainingMemory];
       hasUpdates = true;
     }
 
@@ -164,13 +188,16 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
       hasUpdates = true;
     }
 
-    if (mentionsData) {
+    if (mentionsData && mentionsData.length > 0) {
       memoryMentions = mentionsData;
       hasUpdates = true;
     }
 
     if (notifsData) {
-      memoryNotifications = notifsData;
+      // Merge notifications: keep memory notifications for other users (for local multi-user testing)
+      const fetchedIds = new Set(notifsData.map((n) => n.id));
+      const remainingMemory = memoryNotifications.filter((n) => !fetchedIds.has(n.id));
+      memoryNotifications = [...notifsData, ...remainingMemory];
       hasUpdates = true;
     }
 
@@ -199,6 +226,8 @@ export function initRealtimeNotifications() {
   if (isSupabaseConfigured() && client && !realtimeSubscribed) {
     try {
       realtimeSubscribed = true;
+
+      // 1. Subscribe to notifications table
       client
         .channel('public:notifications')
         .on(
@@ -207,7 +236,45 @@ export function initRealtimeNotifications() {
           () => {
             safeFetchNotifications().then((data) => {
               if (data) {
-                memoryNotifications = data;
+                const fetchedIds = new Set(data.map((n) => n.id));
+                const remainingMemory = memoryNotifications.filter((n) => !fetchedIds.has(n.id));
+                memoryNotifications = [...data, ...remainingMemory];
+                persistStore();
+              }
+            }).catch(() => {});
+          }
+        )
+        .subscribe();
+
+      // 2. Subscribe to leave_requests table for real-time admin sync (Dinesh <-> Aswin)
+      client
+        .channel('public:leave_requests')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'leave_requests' },
+          () => {
+            safeFetchLeaves().then((data) => {
+              if (data) {
+                const fetchedIds = new Set(data.map((l) => l.id));
+                const remainingMemory = memoryLeaves.filter((l) => !fetchedIds.has(l.id));
+                memoryLeaves = [...data, ...remainingMemory];
+                persistStore();
+              }
+            }).catch(() => {});
+          }
+        )
+        .subscribe();
+
+      // 3. Subscribe to calendar_events table
+      client
+        .channel('public:calendar_events')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'calendar_events' },
+          () => {
+            safeFetchMentions().then((data) => {
+              if (data && data.length > 0) {
+                memoryMentions = data;
                 persistStore();
               }
             }).catch(() => {});
@@ -219,16 +286,36 @@ export function initRealtimeNotifications() {
     }
   }
 
-  // Safe fallback periodic polling (every 30 seconds)
+  // Safe fallback periodic polling (every 15 seconds)
   if (!pollingInterval && isSupabaseConfigured()) {
     pollingInterval = setInterval(() => {
-      safeFetchNotifications().then((data) => {
-        if (data && JSON.stringify(data) !== JSON.stringify(memoryNotifications)) {
-          memoryNotifications = data;
-          persistStore();
-        }
-      }).catch(() => {});
-    }, 30000);
+      Promise.all([safeFetchNotifications(), safeFetchLeaves()])
+        .then(([notifs, leaves]) => {
+          let hasChange = false;
+          if (notifs) {
+            const fetchedIds = new Set(notifs.map((n) => n.id));
+            const remainingMemory = memoryNotifications.filter((n) => !fetchedIds.has(n.id));
+            const mergedNotifs = [...notifs, ...remainingMemory];
+            if (JSON.stringify(mergedNotifs) !== JSON.stringify(memoryNotifications)) {
+              memoryNotifications = mergedNotifs;
+              hasChange = true;
+            }
+          }
+          if (leaves) {
+            const fetchedIds = new Set(leaves.map((l) => l.id));
+            const remainingMemory = memoryLeaves.filter((l) => !fetchedIds.has(l.id));
+            const mergedLeaves = [...leaves, ...remainingMemory];
+            if (JSON.stringify(mergedLeaves) !== JSON.stringify(memoryLeaves)) {
+              memoryLeaves = mergedLeaves;
+              hasChange = true;
+            }
+          }
+          if (hasChange) {
+            persistStore();
+          }
+        })
+        .catch(() => {});
+    }, 15000);
   }
 }
 
@@ -441,11 +528,15 @@ export async function createNotification(payload: {
   const targetRecipient = payload.recipient_user_id || payload.recipient_id || '';
   const targetLeaveId = payload.leave_request_id || payload.reference_id || null;
 
+  if (!targetRecipient) {
+    throw new Error('Recipient user ID is required to create a notification.');
+  }
+
   // Duplicate check: Prevent creating duplicate notifications for the same leave, recipient, and type
   if (targetLeaveId && targetRecipient) {
     const existingMemory = memoryNotifications.find(
       (n) =>
-        (n.recipient_user_id === targetRecipient || n.recipient_id === targetRecipient) &&
+        (n.recipient_user_id === targetRecipient || n.recipient_id === targetRecipient || n.userId === targetRecipient) &&
         (n.leave_request_id === targetLeaveId || n.reference_id === targetLeaveId) &&
         n.type === payload.type
     );
@@ -454,8 +545,11 @@ export async function createNotification(payload: {
     }
   }
 
+  const notifId = generateUUID();
+  const nowIso = new Date().toISOString();
+
   const newNotif: AppNotification = {
-    id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    id: notifId,
     recipient_user_id: targetRecipient,
     recipient_id: targetRecipient,
     sender_id: payload.sender_id || null,
@@ -465,11 +559,11 @@ export async function createNotification(payload: {
     leave_request_id: targetLeaveId,
     reference_id: targetLeaveId,
     is_read: false,
-    created_at: new Date().toISOString(),
+    created_at: nowIso,
     // Aliases
     userId: targetRecipient,
     isRead: false,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso,
   };
 
   memoryNotifications = [newNotif, ...memoryNotifications];
@@ -492,17 +586,21 @@ export async function createNotification(payload: {
         }
       }
 
-      await client.from('notifications').insert({
+      const { error: notifInsertErr } = await client.from('notifications').insert({
+        id: notifId,
         recipient_user_id: targetRecipient,
-        sender_id: payload.sender_id || null,
         title: payload.title,
         message: payload.message,
         type: payload.type,
         leave_request_id: targetLeaveId,
         is_read: false,
       });
+
+      if (notifInsertErr) {
+        console.error('[Supabase notifications insert error]:', notifInsertErr);
+      }
     } catch (err) {
-      console.warn('Supabase notification insert sync:', err);
+      console.error('[Supabase notification insert sync exception]:', err);
     }
   }
 
@@ -677,8 +775,11 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
     };
   }
 
+  const leaveId = generateUUID();
+  const nowIso = new Date().toISOString();
+
   const newLeave: LeaveRequest = {
-    id: `leave-${Date.now()}`,
+    id: leaveId,
     user_id: userId,
     leave_type: leaveType,
     start_date: startDate,
@@ -688,57 +789,20 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
     show_on_calendar: false, // Default is OFF. Pending leaves never appear on calendar.
     approved_by: null,
     approved_at: null,
-    created_at: new Date().toISOString(),
+    created_at: nowIso,
+    updated_at: nowIso,
   };
 
+  // 1. Insert into memory leaves
   memoryLeaves = [newLeave, ...memoryLeaves];
+  persistStore();
 
-  // Format date range string for notifications (e.g. "from 08 Oct 2026 to 09 Oct 2026")
-  const startFormatted = formatDisplayDate(startDate);
-  const endFormatted = formatDisplayDate(endDate);
-  const dateRangeStr = `from ${startFormatted} to ${endFormatted}`;
-
-  // Dynamic admin notification query: Notify ALL active admins in public.profiles (role = 'admin' AND is_active = true)
   const client = getSupabaseClient();
-  const notifyAdmins = async () => {
-    let activeAdmins: UserProfile[] = [];
-    if (isSupabaseConfigured() && client) {
-      try {
-        const { data: adminProfiles } = await client
-          .from('profiles')
-          .select('*')
-          .eq('role', 'admin')
-          .eq('is_active', true);
-        if (adminProfiles && adminProfiles.length > 0) {
-          activeAdmins = adminProfiles as UserProfile[];
-        }
-      } catch (err) {
-        console.warn('Supabase active admin query error:', err);
-      }
-    }
-    if (activeAdmins.length === 0) {
-      activeAdmins = memoryUsers.filter((u) => u.role === 'admin' && u.is_active);
-    }
 
-    for (const admin of activeAdmins) {
-      createNotification({
-        recipient_user_id: admin.id,
-        recipient_id: admin.id,
-        sender_id: user.id,
-        title: 'New Leave Request',
-        message: `${user.full_name} has applied for ${leaveType} ${dateRangeStr}.`,
-        type: 'leave_request',
-        leave_request_id: newLeave.id,
-        reference_id: newLeave.id,
-      }).catch((err) => console.warn('Admin notification error:', err));
-    }
-  };
-
-  notifyAdmins().catch((err) => console.warn('Notify admins error:', err));
-
+  // 2. Insert into Supabase FIRST so foreign key constraints in notifications are satisfied
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('leave_requests').insert({
+      const { error: insertLeaveErr } = await client.from('leave_requests').insert({
         id: newLeave.id,
         user_id: userId,
         leave_type: leaveType,
@@ -748,8 +812,60 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
         status: 'pending',
         show_on_calendar: false,
       });
+      if (insertLeaveErr) {
+        console.error('[Supabase leave_requests insert error]:', insertLeaveErr);
+      }
     } catch (err) {
-      console.warn('Supabase leave insert sync:', err);
+      console.error('[Supabase leave insert sync exception]:', err);
+    }
+  }
+
+  // 3. Format date range string for notifications (e.g. "from 08 Oct 2026 to 09 Oct 2026")
+  const startFormatted = formatDisplayDate(startDate);
+  const endFormatted = formatDisplayDate(endDate);
+  const dateRangeStr = `from ${startFormatted} to ${endFormatted}`;
+
+  // 4. Dynamic admin notification query: Notify ALL active admins in public.profiles (role = 'admin' AND is_active = true)
+  let activeAdmins: UserProfile[] = [];
+  if (isSupabaseConfigured() && client) {
+    try {
+      const { data: adminProfiles, error: adminErr } = await client
+        .from('profiles')
+        .select('*')
+        .eq('role', 'admin')
+        .eq('is_active', true);
+      if (adminErr) {
+        console.error('[Fetch active admins error]:', adminErr);
+      }
+      if (adminProfiles && adminProfiles.length > 0) {
+        activeAdmins = adminProfiles as UserProfile[];
+      }
+    } catch (err) {
+      console.warn('Supabase active admin query error:', err);
+    }
+  }
+  if (activeAdmins.length === 0) {
+    activeAdmins = memoryUsers.filter((u) => u.role === 'admin' && (u.is_active ?? true));
+  }
+
+  // Create separate notification row for EACH active admin (Dinesh, Aswin, etc.)
+  for (const admin of activeAdmins) {
+    // Do not send "New Leave Request" notification to the submitter even if the submitter is an admin
+    if (admin.id === user.id) continue;
+
+    try {
+      await createNotification({
+        recipient_user_id: admin.id,
+        recipient_id: admin.id,
+        sender_id: user.id,
+        title: 'New Leave Request',
+        message: `${user.full_name} has applied for ${leaveType} ${dateRangeStr}.`,
+        type: 'leave_request',
+        leave_request_id: newLeave.id,
+        reference_id: newLeave.id,
+      });
+    } catch (err) {
+      console.error(`[Admin notification error for ${admin.full_name}]:`, err);
     }
   }
 
@@ -773,18 +889,22 @@ export async function approveLeave(
 
   const leave = memoryLeaves[leaveIndex];
 
-  // Prevent duplicate notifications if already approved
+  // Prevent duplicate or invalid status transitions
   if (leave.status === 'approved') {
     return { success: true, message: 'Leave request is already approved.' };
   }
+  if (leave.status === 'rejected' || leave.status === 'cancelled') {
+    return { success: false, message: `Cannot approve a leave that is already ${leave.status}.` };
+  }
 
+  const nowIso = new Date().toISOString();
   memoryLeaves[leaveIndex] = {
     ...leave,
     status: 'approved',
     show_on_calendar: showOnCalendar,
     approved_by: adminUserId,
-    approved_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    approved_at: nowIso,
+    updated_at: nowIso,
   };
 
   // Format date range for notification (e.g. "from 08 Oct 2026 to 09 Oct 2026")
@@ -792,7 +912,7 @@ export async function approveLeave(
   const endFormatted = formatDisplayDate(leave.end_date);
   const dateRangeStr = `from ${startFormatted} to ${endFormatted}`;
 
-  // Notify Employee about approval (without exposing private notes)
+  // Notify Employee ONLY about approval (without exposing private notes)
   createNotification({
     recipient_user_id: leave.user_id,
     recipient_id: leave.user_id,
@@ -802,29 +922,36 @@ export async function approveLeave(
     type: 'leave_approved',
     leave_request_id: leave.id,
     reference_id: leave.id,
-  }).catch((err) => console.warn('Employee approve notification error:', err));
+  }).catch((err) => console.error('[Employee approve notification error]:', err));
 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client
+      // Conditional update: only update if status is still pending (concurrent admin safety)
+      const { error: updateErr } = await client
         .from('leave_requests')
         .update({
           status: 'approved',
           show_on_calendar: showOnCalendar,
           approved_by: adminUserId,
-          approved_at: new Date().toISOString(),
+          approved_at: nowIso,
+          updated_at: nowIso,
         })
-        .eq('id', leaveId);
+        .eq('id', leaveId)
+        .eq('status', 'pending');
+
+      if (updateErr) {
+        console.error('[Supabase approve update error]:', updateErr);
+      }
     } catch (err) {
-      console.warn('Supabase approve update sync:', err);
+      console.error('[Supabase approve update sync exception]:', err);
     }
   }
 
   persistStore();
   return {
     success: true,
-    message: `Leave approved.${showOnCalendar ? ' Marked visible on calendar.' : ' Hidden from shared calendar.'}`,
+    message: `Leave approved.${showOnCalendar ? ' Marked visible on calendar.' : ' Kept hidden from shared calendar.'}`,
   };
 }
 
@@ -838,21 +965,25 @@ export async function toggleLeaveCalendarVisibility(
   }
 
   const leave = memoryLeaves[leaveIndex];
+  const nowIso = new Date().toISOString();
   memoryLeaves[leaveIndex] = {
     ...leave,
     show_on_calendar: showOnCalendar,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client
+      const { error: visErr } = await client
         .from('leave_requests')
-        .update({ show_on_calendar: showOnCalendar })
+        .update({ show_on_calendar: showOnCalendar, updated_at: nowIso })
         .eq('id', leaveId);
+      if (visErr) {
+        console.error('[Supabase visibility update error]:', visErr);
+      }
     } catch (err) {
-      console.warn('Supabase visibility sync:', err);
+      console.error('[Supabase visibility sync exception]:', err);
     }
   }
 
@@ -875,18 +1006,22 @@ export async function rejectLeave(
 
   const leave = memoryLeaves[leaveIndex];
 
-  // Prevent duplicate notifications if already rejected
+  // Prevent duplicate or invalid status transitions
   if (leave.status === 'rejected') {
     return { success: true, message: 'Leave request is already rejected.' };
   }
+  if (leave.status === 'approved' || leave.status === 'cancelled') {
+    return { success: false, message: `Cannot reject a leave that is already ${leave.status}.` };
+  }
 
+  const nowIso = new Date().toISOString();
   memoryLeaves[leaveIndex] = {
     ...leave,
     status: 'rejected',
-    show_on_calendar: false, // Rejected leaves are never visible
+    show_on_calendar: false, // Rejected leaves are never visible on calendar
     approved_by: adminUserId,
     rejection_reason: rejectionReason || 'Operational constraints',
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
   // Format date range for notification (e.g. "from 08 Oct 2026 to 09 Oct 2026")
@@ -894,7 +1029,7 @@ export async function rejectLeave(
   const endFormatted = formatDisplayDate(leave.end_date);
   const dateRangeStr = `from ${startFormatted} to ${endFormatted}`;
 
-  // Notify Employee about rejection
+  // Notify Employee ONLY about rejection
   createNotification({
     recipient_user_id: leave.user_id,
     recipient_id: leave.user_id,
@@ -904,22 +1039,29 @@ export async function rejectLeave(
     type: 'leave_rejected',
     leave_request_id: leave.id,
     reference_id: leave.id,
-  }).catch((err) => console.warn('Employee reject notification error:', err));
+  }).catch((err) => console.error('[Employee reject notification error]:', err));
 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client
+      // Conditional update: only update if status is still pending (concurrent admin safety)
+      const { error: updateErr } = await client
         .from('leave_requests')
         .update({
           status: 'rejected',
           show_on_calendar: false,
           approved_by: adminUserId,
-          rejection_reason: rejectionReason,
+          rejection_reason: rejectionReason || 'Operational constraints',
+          updated_at: nowIso,
         })
-        .eq('id', leaveId);
+        .eq('id', leaveId)
+        .eq('status', 'pending');
+
+      if (updateErr) {
+        console.error('[Supabase reject update error]:', updateErr);
+      }
     } catch (err) {
-      console.warn('Supabase reject update sync:', err);
+      console.error('[Supabase reject update sync exception]:', err);
     }
   }
 
@@ -942,12 +1084,29 @@ export async function cancelLeave(leaveId: string, userId: string): Promise<{ su
     return { success: false, message: 'Only pending leave requests can be cancelled.' };
   }
 
+  const nowIso = new Date().toISOString();
   memoryLeaves[leaveIndex] = {
     ...leave,
     status: 'cancelled',
     show_on_calendar: false,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
+
+  const client = getSupabaseClient();
+  if (isSupabaseConfigured() && client) {
+    try {
+      const { error: cancelErr } = await client
+        .from('leave_requests')
+        .update({ status: 'cancelled', show_on_calendar: false, updated_at: nowIso })
+        .eq('id', leaveId)
+        .eq('status', 'pending');
+      if (cancelErr) {
+        console.error('[Supabase cancel update error]:', cancelErr);
+      }
+    } catch (err) {
+      console.error('[Supabase cancel update sync exception]:', err);
+    }
+  }
 
   persistStore();
   return { success: true, message: 'Leave request cancelled successfully.' };
@@ -969,11 +1128,15 @@ export async function addMention(
     return { success: false, message: 'End date cannot be earlier than start date.' };
   }
 
+  const mentionId = generateUUID();
+  const nowIso = new Date().toISOString();
+
   const newMention: ManualCalendarEvent = {
     ...mention,
     end_date: endDate,
-    id: `mention-${Date.now()}`,
-    created_at: new Date().toISOString(),
+    id: mentionId,
+    created_at: nowIso,
+    updated_at: nowIso,
   };
 
   memoryMentions = [newMention, ...memoryMentions];
@@ -981,9 +1144,12 @@ export async function addMention(
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('calendar_events').insert(newMention);
+      const { error: mentionInsertErr } = await client.from('calendar_events').insert(newMention);
+      if (mentionInsertErr) {
+        console.error('[Supabase mention insert error]:', mentionInsertErr);
+      }
     } catch (err) {
-      console.warn('Supabase mention insert sync:', err);
+      console.error('[Supabase mention insert sync exception]:', err);
     }
   }
 
@@ -1000,18 +1166,25 @@ export async function updateMention(
     return { success: false, message: 'Calendar mention not found.' };
   }
 
+  const nowIso = new Date().toISOString();
   memoryMentions[index] = {
     ...memoryMentions[index],
     ...updated,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('calendar_events').update(updated).eq('id', id);
+      const { error: mentionUpdateErr } = await client
+        .from('calendar_events')
+        .update({ ...updated, updated_at: nowIso })
+        .eq('id', id);
+      if (mentionUpdateErr) {
+        console.error('[Supabase mention update error]:', mentionUpdateErr);
+      }
     } catch (err) {
-      console.warn('Supabase mention update sync:', err);
+      console.error('[Supabase mention update sync exception]:', err);
     }
   }
 
@@ -1030,9 +1203,12 @@ export async function deleteMention(id: string): Promise<{ success: boolean; mes
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('calendar_events').delete().eq('id', id);
+      const { error: mentionDeleteErr } = await client.from('calendar_events').delete().eq('id', id);
+      if (mentionDeleteErr) {
+        console.error('[Supabase mention delete error]:', mentionDeleteErr);
+      }
     } catch (err) {
-      console.warn('Supabase mention delete sync:', err);
+      console.error('[Supabase mention delete sync exception]:', err);
     }
   }
 
@@ -1054,10 +1230,14 @@ export async function addHoliday(holiday: Omit<GovernmentHoliday, 'id'>): Promis
     return { success: false, message: `A holiday named "${existing.name}" is already scheduled for ${holiday.date}.` };
   }
 
+  const holidayId = generateUUID();
+  const nowIso = new Date().toISOString();
+
   const newHoliday: GovernmentHoliday = {
     ...holiday,
-    id: `hol-${Date.now()}`,
-    created_at: new Date().toISOString(),
+    id: holidayId,
+    created_at: nowIso,
+    updated_at: nowIso,
   };
 
   memoryHolidays = [...memoryHolidays, newHoliday].sort((a, b) => a.date.localeCompare(b.date));
@@ -1065,9 +1245,12 @@ export async function addHoliday(holiday: Omit<GovernmentHoliday, 'id'>): Promis
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('holidays').insert(newHoliday);
+      const { error: holidayInsertErr } = await client.from('holidays').insert(newHoliday);
+      if (holidayInsertErr) {
+        console.error('[Supabase holiday insert error]:', holidayInsertErr);
+      }
     } catch (err) {
-      console.warn('Supabase holiday insert sync:', err);
+      console.error('[Supabase holiday insert sync exception]:', err);
     }
   }
 
@@ -1084,18 +1267,25 @@ export async function updateHoliday(
     return { success: false, message: 'Holiday not found.' };
   }
 
+  const nowIso = new Date().toISOString();
   memoryHolidays[index] = {
     ...memoryHolidays[index],
     ...updated,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('holidays').update(updated).eq('id', id);
+      const { error: holidayUpdateErr } = await client
+        .from('holidays')
+        .update({ ...updated, updated_at: nowIso })
+        .eq('id', id);
+      if (holidayUpdateErr) {
+        console.error('[Supabase holiday update error]:', holidayUpdateErr);
+      }
     } catch (err) {
-      console.warn('Supabase holiday update sync:', err);
+      console.error('[Supabase holiday update sync exception]:', err);
     }
   }
 
@@ -1114,9 +1304,12 @@ export async function deleteHoliday(id: string): Promise<{ success: boolean; mes
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('holidays').delete().eq('id', id);
+      const { error: holidayDeleteErr } = await client.from('holidays').delete().eq('id', id);
+      if (holidayDeleteErr) {
+        console.error('[Supabase holiday delete error]:', holidayDeleteErr);
+      }
     } catch (err) {
-      console.warn('Supabase holiday delete sync:', err);
+      console.error('[Supabase holiday delete sync exception]:', err);
     }
   }
 
@@ -1138,11 +1331,15 @@ export async function addEmployee(employee: Omit<UserProfile, 'id'>): Promise<{ 
     return { success: false, message: 'An employee with this email already exists.' };
   }
 
+  const empId = generateUUID();
+  const nowIso = new Date().toISOString();
+
   const newEmp: UserProfile = {
     ...employee,
-    id: `user-${Date.now()}`,
+    id: empId,
     is_active: true,
-    created_at: new Date().toISOString(),
+    created_at: nowIso,
+    updated_at: nowIso,
   };
 
   memoryUsers = [...memoryUsers, newEmp];
@@ -1150,9 +1347,12 @@ export async function addEmployee(employee: Omit<UserProfile, 'id'>): Promise<{ 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('profiles').insert(newEmp);
+      const { error: profileInsertErr } = await client.from('profiles').insert(newEmp);
+      if (profileInsertErr) {
+        console.error('[Supabase profile insert error]:', profileInsertErr);
+      }
     } catch (err) {
-      console.warn('Supabase profile insert sync:', err);
+      console.error('[Supabase profile insert sync exception]:', err);
     }
   }
 
@@ -1166,18 +1366,25 @@ export async function updateEmployee(id: string, updated: Partial<UserProfile>):
     return { success: false, message: 'Employee not found.' };
   }
 
+  const nowIso = new Date().toISOString();
   memoryUsers[index] = {
     ...memoryUsers[index],
     ...updated,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('profiles').update(updated).eq('id', id);
+      const { error: profileUpdateErr } = await client
+        .from('profiles')
+        .update({ ...updated, updated_at: nowIso })
+        .eq('id', id);
+      if (profileUpdateErr) {
+        console.error('[Supabase profile update error]:', profileUpdateErr);
+      }
     } catch (err) {
-      console.warn('Supabase profile update sync:', err);
+      console.error('[Supabase profile update sync exception]:', err);
     }
   }
 
@@ -1193,18 +1400,25 @@ export async function toggleEmployeeStatus(id: string): Promise<{ success: boole
 
   const current = memoryUsers[index];
   const newStatus = !current.is_active;
+  const nowIso = new Date().toISOString();
   memoryUsers[index] = {
     ...current,
     is_active: newStatus,
-    updated_at: new Date().toISOString(),
+    updated_at: nowIso,
   };
 
   const client = getSupabaseClient();
   if (isSupabaseConfigured() && client) {
     try {
-      await client.from('profiles').update({ is_active: newStatus }).eq('id', id);
+      const { error: statusUpdateErr } = await client
+        .from('profiles')
+        .update({ is_active: newStatus, updated_at: nowIso })
+        .eq('id', id);
+      if (statusUpdateErr) {
+        console.error('[Supabase profile status update error]:', statusUpdateErr);
+      }
     } catch (err) {
-      console.warn('Supabase profile status sync:', err);
+      console.error('[Supabase profile status sync exception]:', err);
     }
   }
 
