@@ -12,14 +12,14 @@
 * **Leave Privacy**: Private employee reasons, medical explanations, internal admin notes, and rejection details are masked from peer employees and visible only to the owner and Admin.
 * **Row Level Security (RLS)**: PostgreSQL policies on Supabase enforce security at the database layer. Service-role keys are never exposed to the client.
 
-### Company Members
+### Company Members & Access Roles
 
-| Name | Work Email | Role | Department |
-| :--- | :--- | :--- | :--- |
-| **Dinesh** | `dinesh@dwellvise.com` | 👑 **Admin / Manager** | Management |
-| **Aswin** | `aswin@dwellvise.com` | 👑 **Admin / Manager** | Engineering |
-| **Pachamuthu** | `pachamuthu@dwellvise.com` | 👤 **Employee** | Engineering |
-| **Shalini** | `shalini@dwellvise.com` | 👤 **Employee** | Engineering |
+| Name | Work Email | Role | Permissions | Department |
+| :--- | :--- | :--- | :--- | :--- |
+| **Dinesh** | `dinesh@dwellvise.com` | 👑 **Admin** | Full Admin Control (Reviews, Approvals, Meetings, Holidays, Events, Reports) | Management |
+| **Aswin** | `aswin@dwellvise.com` | 👑 **Admin** | Full Admin Control (Identical 100% Admin Permissions to Dinesh) | Engineering |
+| **Pachamuthu** | `pachamuthu@dwellvise.com` | 👤 **Employee** | Workspace Staff (Apply Leave, View Shared Calendar & Holidays, Private Balances) | Engineering |
+| **Shalini** | `shalini@dwellvise.com` | 👤 **Employee** | Workspace Staff (Apply Leave, View Shared Calendar & Holidays, Private Balances) | Engineering |
 
 ---
 
@@ -30,11 +30,12 @@
 * **Icons**: Lucide React
 * **Database & Auth**: Supabase PostgreSQL + SSR Auth with Row Level Security (RLS)
 * **Date Handling**: Bounded local calendar computation (October 2026 – December 2027)
+* **Meeting Scheduler**: Dynamic recurrence engine (Tactical: 14 days, Strategic: 45 days) with Sunday and approved leave conflict resolution and actual-date forward calculation
 
 ### Verification Status
-* ✅ **TypeScript**: `npx tsc --noEmit` — 0 errors
-* ✅ **ESLint**: `npm run lint` — 0 errors, 0 warnings
-* ✅ **Production Build**: `npm run build` — 15/15 static routes optimized and compiled successfully
+* ✅ **TypeScript**: `npm run typecheck` — 0 errors
+* ✅ **Production Build**: `npm run build` — 17/17 static routes optimized and compiled successfully
+* ✅ **Role-Based Admin Access**: Dinesh and Aswin have 100% identical Admin privileges (`role = 'admin' AND is_active = true`)
 
 ---
 
