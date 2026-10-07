@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { UserProfile } from '@/types';
-import { getUsers, initializeStore, subscribeToStore } from '@/lib/data/store';
+import { getUsers, initializeStore, subscribeToStore, upsertUserInMemory } from '@/lib/data/store';
 import { isSupabaseConfigured, getSupabaseClient } from '@/lib/supabase/client';
 
 interface AuthContextType {
@@ -46,7 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (data) {
-          return data as UserProfile;
+          const profile = data as UserProfile;
+          upsertUserInMemory(profile);
+          return profile;
         }
 
         // 2. Secondary fallback for schemas with separate auth_user_id column
@@ -61,7 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (authUserData) {
-          return authUserData as UserProfile;
+          const profile = authUserData as UserProfile;
+          upsertUserInMemory(profile);
+          return profile;
         }
 
         // 3. Fallback lookup by email if available
@@ -77,16 +81,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           if (emailData) {
+            const profile = emailData as UserProfile;
             // Auto-link auth_user_id for seamless future lookups
             try {
               await client
                 .from('profiles')
                 .update({ auth_user_id: authUserId })
-                .eq('id', emailData.id);
+                .eq('id', profile.id);
             } catch {
               // Ignore update error if RLS restricts
             }
-            return emailData as UserProfile;
+            upsertUserInMemory(profile);
+            return profile;
           }
         }
 
@@ -132,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setIsLoading(false);
                 return;
               }
+              upsertUserInMemory(dbProfile);
               setUser(dbProfile);
               setIsLoading(false);
               return;
@@ -216,11 +223,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const authUser = session.user;
             const dbProfile = await fetchProfileForAuthUser(authUser.id, authUser.email);
             if (dbProfile && dbProfile.is_active !== false) {
+              upsertUserInMemory(dbProfile);
               setUser(dbProfile);
             } else {
               const currentUsers = getUsers();
-              const matched = currentUsers.find((u) => u.id === authUser.id);
+              const matched = currentUsers.find((u) => u.id === authUser.id || u.email.toLowerCase() === (authUser.email || '').toLowerCase());
               if (matched && matched.is_active !== false) {
+                upsertUserInMemory(matched);
                 setUser(matched);
               }
             }
@@ -340,6 +349,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined') {
               localStorage.setItem('officeflow_active_user_id', dbProfile.id);
             }
+            upsertUserInMemory(dbProfile);
             setUser(dbProfile);
             setIsLoading(false);
             return { success: true, message: `Welcome back, ${dbProfile.full_name}!` };
@@ -361,6 +371,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined') {
               localStorage.setItem('officeflow_active_user_id', matched.id);
             }
+            upsertUserInMemory(matched);
             setUser(matched);
             setIsLoading(false);
             return { success: true, message: `Welcome back, ${matched.full_name}!` };

@@ -471,15 +471,37 @@ export function getUsers(): UserProfile[] {
   return [...memoryUsers];
 }
 
+export function upsertUserInMemory(profile: UserProfile): void {
+  if (!profile) return;
+  const idx = memoryUsers.findIndex(
+    (u) =>
+      u.id === profile.id ||
+      (profile.auth_user_id && (u.auth_user_id === profile.auth_user_id || u.id === profile.auth_user_id)) ||
+      (profile.email && u.email.toLowerCase() === profile.email.toLowerCase())
+  );
+  if (idx !== -1) {
+    memoryUsers[idx] = { ...memoryUsers[idx], ...profile };
+  } else {
+    memoryUsers.push(profile);
+  }
+  persistStore();
+}
+
 export function getUserById(id: string): UserProfile | undefined {
-  return memoryUsers.find((u) => u.id === id);
+  if (!id) return undefined;
+  return memoryUsers.find(
+    (u) =>
+      u.id === id ||
+      u.auth_user_id === id ||
+      (u.email && u.email.toLowerCase() === id.toLowerCase())
+  );
 }
 
 export function getLeaves(): LeaveRequest[] {
   return memoryLeaves.map((leave) => ({
     ...leave,
-    user: memoryUsers.find((u) => u.id === leave.user_id),
-    approver: leave.approved_by ? memoryUsers.find((u) => u.id === leave.approved_by) : undefined,
+    user: memoryUsers.find((u) => u.id === leave.user_id || (u.auth_user_id && u.auth_user_id === leave.user_id)),
+    approver: leave.approved_by ? memoryUsers.find((u) => u.id === leave.approved_by || (u.auth_user_id && u.auth_user_id === leave.approved_by)) : undefined,
   }));
 }
 
@@ -488,8 +510,8 @@ export function getLeaveById(id: string): LeaveRequest | undefined {
   if (!leave) return undefined;
   return {
     ...leave,
-    user: memoryUsers.find((u) => u.id === leave.user_id),
-    approver: leave.approved_by ? memoryUsers.find((u) => u.id === leave.approved_by) : undefined,
+    user: memoryUsers.find((u) => u.id === leave.user_id || (u.auth_user_id && u.auth_user_id === leave.user_id)),
+    approver: leave.approved_by ? memoryUsers.find((u) => u.id === leave.approved_by || (u.auth_user_id && u.auth_user_id === leave.approved_by)) : undefined,
   };
 }
 
@@ -948,15 +970,83 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
     return { success: false, message: 'End date cannot be earlier than start date.' };
   }
 
-  const user = getUserById(userId);
-  if (!user) {
-    return { success: false, message: 'Employee profile not found.' };
+  const client = getSupabaseClient();
+  let authUser: { id: string; email?: string } | null = null;
+  if (isSupabaseConfigured() && client) {
+    try {
+      const { data: authData } = await client.auth.getUser();
+      if (authData?.user) {
+        authUser = authData.user;
+      }
+    } catch {
+      // Ignore auth get error
+    }
   }
+
+  // 1. Resolve Profile: Check memory by userId, authUser.id, or email
+  let user: UserProfile | undefined = getUserById(userId);
+  if (!user && authUser) {
+    user = getUserById(authUser.id);
+    if (!user && authUser.email) {
+      user = memoryUsers.find((u) => u.email.toLowerCase() === authUser!.email!.toLowerCase());
+    }
+  }
+
+  // 2. If not found in memory, query Supabase public.profiles directly
+  if (!user && isSupabaseConfigured() && client) {
+    try {
+      const targetId = authUser?.id || userId;
+      const { data: dbProfile } = await client
+        .from('profiles')
+        .select('*')
+        .eq('id', targetId)
+        .maybeSingle();
+
+      if (dbProfile) {
+        user = dbProfile as UserProfile;
+        upsertUserInMemory(user);
+      } else if (authUser?.email) {
+        const { data: dbProfileByEmail } = await client
+          .from('profiles')
+          .select('*')
+          .eq('email', authUser.email.toLowerCase())
+          .maybeSingle();
+
+        if (dbProfileByEmail) {
+          user = dbProfileByEmail as UserProfile;
+          upsertUserInMemory(user);
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase profile query during leave apply exception:', err);
+    }
+  }
+
+  // 3. Fallback match in INITIAL_USERS
+  if (!user) {
+    user = INITIAL_USERS.find(
+      (u) =>
+        u.id === userId ||
+        (authUser && (u.id === authUser.id || (authUser.email && u.email.toLowerCase() === authUser.email.toLowerCase())))
+    );
+    if (user) {
+      upsertUserInMemory(user);
+    }
+  }
+
+  if (!user) {
+    return {
+      success: false,
+      message: 'Employee profile not configured. Please contact an administrator.',
+    };
+  }
+
+  const effectiveUserId = user.id;
 
   // Check for duplicate / overlapping active requests
   const existingOverlap = memoryLeaves.find(
     (l) =>
-      l.user_id === userId &&
+      (l.user_id === effectiveUserId || l.user_id === userId) &&
       (l.status === 'pending' || l.status === 'approved') &&
       !(endDate < l.start_date || startDate > l.end_date)
   );
@@ -973,7 +1063,7 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
 
   const newLeave: LeaveRequest = {
     id: leaveId,
-    user_id: userId,
+    user_id: effectiveUserId,
     leave_type: leaveType,
     start_date: startDate,
     end_date: endDate,
@@ -990,14 +1080,12 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
   memoryLeaves = [newLeave, ...memoryLeaves];
   persistStore();
 
-  const client = getSupabaseClient();
-
   // 2. Insert into Supabase FIRST so foreign key constraints in notifications are satisfied
   if (isSupabaseConfigured() && client) {
     try {
       const { error: insertLeaveErr } = await client.from('leave_requests').insert({
         id: newLeave.id,
-        user_id: userId,
+        user_id: effectiveUserId,
         leave_type: leaveType,
         start_date: startDate,
         end_date: endDate,
@@ -1044,7 +1132,7 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
   // Create separate notification row for EACH active admin (Dinesh, Aswin, etc.)
   for (const admin of activeAdmins) {
     // Do not send "New Leave Request" notification to the submitter even if the submitter is an admin
-    if (admin.id === user.id) continue;
+    if (admin.id === effectiveUserId || admin.id === user.id) continue;
 
     try {
       await createNotification({
