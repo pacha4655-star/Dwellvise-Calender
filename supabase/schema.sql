@@ -218,3 +218,84 @@ CREATE POLICY "Authenticated users can create notifications"
 CREATE POLICY "Admins can manage all notifications"
   ON public.notifications FOR ALL TO authenticated
   USING (EXISTS (SELECT 1 FROM public.profiles WHERE (auth_user_id = auth.uid() OR id = auth.uid()) AND role = 'admin'));
+
+-- ==============================================================================
+-- AUTOMATIC AUTH USER PROFILE SYNCHRONIZATION TRIGGER
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_role TEXT := 'employee';
+  v_full_name TEXT;
+  v_dept TEXT := 'Engineering';
+  v_desig TEXT := 'Software Engineer';
+BEGIN
+  IF NEW.email IN ('dinesh@dwellvise.com', 'aswin@dwellvise.com') THEN
+    v_role := 'admin';
+  ELSIF (NEW.raw_user_meta_data->>'role') = 'admin' THEN
+    v_role := 'admin';
+  END IF;
+
+  IF NEW.email = 'shalini@dwellvise.com' THEN
+    v_full_name := 'Shalini';
+    v_desig := 'Software Engineer';
+  ELSIF NEW.email = 'aswin@dwellvise.com' THEN
+    v_full_name := 'Aswin';
+    v_desig := 'Software Engineer';
+  ELSIF NEW.email = 'dinesh@dwellvise.com' THEN
+    v_full_name := 'Dinesh';
+    v_dept := 'Management';
+    v_desig := 'Operations & Engineering Lead';
+  ELSIF NEW.email = 'pachamuthu@dwellvise.com' THEN
+    v_full_name := 'Pachamuthu';
+    v_desig := 'Senior Software Engineer';
+  ELSE
+    v_full_name := COALESCE(NEW.raw_user_meta_data->>'full_name', initcap(split_part(NEW.email, '@', 1)));
+  END IF;
+
+  INSERT INTO public.profiles (
+    id,
+    auth_user_id,
+    full_name,
+    email,
+    role,
+    department,
+    designation,
+    phone,
+    is_active,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    NEW.id,
+    NEW.id,
+    v_full_name,
+    NEW.email,
+    v_role,
+    COALESCE(NEW.raw_user_meta_data->>'department', v_dept),
+    COALESCE(NEW.raw_user_meta_data->>'designation', v_desig),
+    COALESCE(NEW.raw_user_meta_data->>'phone', ''),
+    true,
+    timezone('utc'::text, now()),
+    timezone('utc'::text, now())
+  )
+  ON CONFLICT (email) DO UPDATE SET
+    id = EXCLUDED.id,
+    auth_user_id = EXCLUDED.auth_user_id,
+    full_name = EXCLUDED.full_name,
+    role = CASE 
+      WHEN public.profiles.role = 'admin' OR EXCLUDED.email IN ('dinesh@dwellvise.com', 'aswin@dwellvise.com') THEN 'admin' 
+      ELSE EXCLUDED.role 
+    END,
+    is_active = true,
+    updated_at = timezone('utc'::text, now());
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+
