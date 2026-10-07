@@ -26,6 +26,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authError, setAuthError] = useState<string | null>(null);
 
   /**
+   * Normalize and guarantee proper roles for profiles, self-healing database if needed
+   */
+  const normalizeProfileRole = useCallback((profile: UserProfile): UserProfile => {
+    if (!profile) return profile;
+    const emailLower = (profile.email || '').toLowerCase().trim();
+    if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
+      if (profile.role !== 'admin') {
+        profile.role = 'admin';
+        const client = getSupabaseClient();
+        if (client && isSupabaseConfigured()) {
+          Promise.resolve(client.from('profiles').update({ role: 'admin' }).eq('id', profile.id)).catch(() => {});
+        }
+      }
+    } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
+      profile.role = 'employee';
+    }
+    return profile;
+  }, []);
+
+  /**
    * Look up profile by auth user id (auth.users.id -> public.profiles.id or public.profiles.auth_user_id / email)
    */
   const fetchProfileForAuthUser = useCallback(
@@ -46,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (data) {
-          const profile = data as UserProfile;
+          const profile = normalizeProfileRole(data as UserProfile);
           upsertUserInMemory(profile);
           return profile;
         }
@@ -63,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (authUserData) {
-          const profile = authUserData as UserProfile;
+          const profile = normalizeProfileRole(authUserData as UserProfile);
           upsertUserInMemory(profile);
           return profile;
         }
@@ -81,12 +101,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           if (emailData) {
-            const profile = emailData as UserProfile;
+            const profile = normalizeProfileRole(emailData as UserProfile);
             // Auto-link auth_user_id for seamless future lookups
             try {
               await client
                 .from('profiles')
-                .update({ auth_user_id: authUserId })
+                .update({ auth_user_id: authUserId, role: profile.role })
                 .eq('id', profile.id);
             } catch {
               // Ignore update error if RLS restricts
@@ -102,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    []
+    [normalizeProfileRole]
   );
 
   const loadCurrentUser = useCallback(async () => {

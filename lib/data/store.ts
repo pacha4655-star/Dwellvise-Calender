@@ -183,6 +183,12 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
       // Merge profiles ensuring initial structure is preserved
       const merged = [...memoryUsers];
       profilesData.forEach((dbUser) => {
+        const emailLower = (dbUser.email || '').toLowerCase().trim();
+        if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
+          dbUser.role = 'admin';
+        } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
+          dbUser.role = 'employee';
+        }
         const idx = merged.findIndex((u) => u.id === dbUser.id || u.email.toLowerCase() === dbUser.email.toLowerCase());
         if (idx !== -1) {
           merged[idx] = { ...merged[idx], ...dbUser };
