@@ -1,14 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/lib/auth/auth-context';
-import { getLeaves, cancelLeave, subscribeToStore } from '@/lib/data/store';
+import {
+  getLeaves,
+  cancelLeave,
+  deleteLeave,
+  getUserById,
+  subscribeToStore,
+  syncDatabaseWithSupabase,
+} from '@/lib/data/store';
 import { LeaveRequest } from '@/types';
 import { formatDisplayDate, formatDateRange, calculateDaysCount } from '@/lib/utils/date-utils';
-import { StatusBadge, Badge } from '@/components/ui/Badge';
+import { StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Card, CardHeader, CardContent } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ApplyLeaveModal } from '@/components/calendar/ApplyLeaveModal';
 import { useToast } from '@/components/ui/Toast';
@@ -20,8 +28,11 @@ import {
   Plus,
   Calendar,
   Trash2,
-  Lock,
+  Ban,
   Filter,
+  RefreshCw,
+  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function MyLeavesPage() {
@@ -31,38 +42,93 @@ export default function MyLeavesPage() {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const reloadLeaves = React.useCallback(() => {
+  // Cancellation Modal State
+  const [cancelModalLeave, setCancelModalLeave] = useState<LeaveRequest | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Deletion Modal State
+  const [deleteModalLeave, setDeleteModalLeave] = useState<LeaveRequest | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const reloadLeaves = useCallback(() => {
     if (!user) return;
     const all = getLeaves();
-    const myOwn = all.filter((l) => l.user_id === user.id);
+    const userEmail = (user.email || '').toLowerCase().trim();
+    const myOwn = all.filter((l) => {
+      if (l.user_id === user.id) return true;
+      if (user.auth_user_id && l.user_id === user.auth_user_id) return true;
+      if (user.id && l.user?.auth_user_id === user.id) return true;
+      if (userEmail && l.user?.email && (l.user.email || '').toLowerCase().trim() === userEmail) return true;
+      const leaveUser = l.user || getUserById(l.user_id);
+      if (leaveUser && userEmail && leaveUser.email && leaveUser.email.toLowerCase().trim() === userEmail) return true;
+      return false;
+    });
     setLeaves(myOwn);
   }, [user]);
 
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await syncDatabaseWithSupabase();
+      reloadLeaves();
+      success('Leave history synchronized with cloud database.', 'Synced');
+    } catch {
+      toastError('Failed to refresh data from cloud.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     reloadLeaves();
+    setIsSyncing(true);
+    syncDatabaseWithSupabase()
+      .then(() => reloadLeaves())
+      .finally(() => setIsSyncing(false));
+
     const unsub = subscribeToStore(reloadLeaves);
     return unsub;
   }, [reloadLeaves]);
 
-  const handleCancel = async (leaveId: string) => {
-    if (!user) return;
-    if (confirm('Are you sure you want to cancel this pending leave request?')) {
-      setCancellingId(leaveId);
-      try {
-        const res = await cancelLeave(leaveId, user.id);
-        if (res.success) {
-          success(res.message, 'Leave Cancelled');
-          reloadLeaves();
-        } else {
-          toastError(res.message);
-        }
-      } catch {
-        toastError('Failed to cancel leave.');
-      } finally {
-        setCancellingId(null);
+  // Execute Cancel Request
+  const handleConfirmCancel = async () => {
+    if (!user || !cancelModalLeave) return;
+    setIsCancelling(true);
+    try {
+      const res = await cancelLeave(cancelModalLeave.id, user.id);
+      if (res.success) {
+        success(res.message, 'Leave Request Cancelled');
+        setCancelModalLeave(null);
+        reloadLeaves();
+      } else {
+        toastError(res.message);
       }
+    } catch {
+      toastError('Failed to cancel leave request.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  // Execute Delete Request
+  const handleConfirmDelete = async () => {
+    if (!user || !deleteModalLeave) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteLeave(deleteModalLeave.id, user.id);
+      if (res.success) {
+        success(res.message, 'Leave Record Deleted');
+        setDeleteModalLeave(null);
+        reloadLeaves();
+      } else {
+        toastError(res.message);
+      }
+    } catch {
+      toastError('Failed to delete leave record.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -86,18 +152,37 @@ export default function MyLeavesPage() {
               My Leaves & Applications
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium">
-              View your time-off history, pending approval status, and submit new leave requests.
+              View your time-off history, manage pending applications, and submit new leave requests.
             </p>
           </div>
 
-          <Button
-            variant="primary"
-            onClick={() => setIsApplyModalOpen(true)}
-            leftIcon={<Plus className="w-4 h-4" />}
-            className="shadow-sm self-start sm:self-auto"
-          >
-            Apply For Leave
-          </Button>
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSync}
+              disabled={isSyncing}
+              leftIcon={
+                isSyncing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )
+              }
+              className="text-xs font-semibold"
+            >
+              {isSyncing ? 'Syncing...' : 'Sync Cloud'}
+            </Button>
+
+            <Button
+              variant="primary"
+              onClick={() => setIsApplyModalOpen(true)}
+              leftIcon={<Plus className="w-4 h-4" />}
+              className="shadow-sm"
+            >
+              Apply For Leave
+            </Button>
+          </div>
         </div>
 
         {/* KPI Cards */}
@@ -125,7 +210,7 @@ export default function MyLeavesPage() {
               </div>
             </div>
             <p className="text-2xl font-extrabold text-emerald-700 mt-2">{approvedLeaves.length}</p>
-            <p className="text-[11px] text-emerald-600 mt-0.5">Confirmed on calendar</p>
+            <p className="text-[11px] text-emerald-600 mt-0.5">Confirmed time off</p>
           </Card>
 
           <Card className="p-4 bg-white border border-slate-200">
@@ -138,7 +223,7 @@ export default function MyLeavesPage() {
               </div>
             </div>
             <p className="text-2xl font-extrabold text-amber-700 mt-2">{pendingLeaves.length}</p>
-            <p className="text-[11px] text-amber-600 mt-0.5">Awaiting manager review</p>
+            <p className="text-[11px] text-amber-600 mt-0.5">Awaiting management review</p>
           </Card>
 
           <Card className="p-4 bg-white border border-slate-200">
@@ -160,7 +245,7 @@ export default function MyLeavesPage() {
           <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
             <div>
               <h3 className="text-base font-bold text-slate-900">Leave History & Records</h3>
-              <p className="text-xs text-slate-500">Full audit record of your submitted requests</p>
+              <p className="text-xs text-slate-500">Manage your submitted leave requests and track status</p>
             </div>
 
             {/* Filter */}
@@ -230,18 +315,33 @@ export default function MyLeavesPage() {
                           <StatusBadge status={leave.status} />
                         </td>
                         <td className="py-4 px-4 sm:px-6 text-right">
-                          {leave.status === 'pending' ? (
-                            <button
-                              onClick={() => handleCancel(leave.id)}
-                              disabled={cancellingId === leave.id}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Cancel</span>
-                            </button>
-                          ) : (
-                            <span className="text-slate-400 font-medium text-[11px]">—</span>
-                          )}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {leave.status === 'pending' && (
+                              <button
+                                onClick={() => setCancelModalLeave(leave)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors"
+                                title="Cancel pending application"
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                                <span>Cancel</span>
+                              </button>
+                            )}
+
+                            {(leave.status === 'cancelled' || leave.status === 'rejected' || leave.status === 'pending') && (
+                              <button
+                                onClick={() => setDeleteModalLeave(leave)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                title="Delete leave record"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            )}
+
+                            {leave.status === 'approved' && (
+                              <span className="text-slate-400 font-medium text-[11px]">—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -296,16 +396,27 @@ export default function MyLeavesPage() {
                         Duration: <strong className="text-slate-900">{days} {days === 1 ? 'day' : 'days'}</strong>
                       </span>
 
-                      {leave.status === 'pending' && (
-                        <button
-                          onClick={() => handleCancel(leave.id)}
-                          disabled={cancellingId === leave.id}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Cancel Request</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {leave.status === 'pending' && (
+                          <button
+                            onClick={() => setCancelModalLeave(leave)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                            <span>Cancel</span>
+                          </button>
+                        )}
+
+                        {(leave.status === 'cancelled' || leave.status === 'rejected' || leave.status === 'pending') && (
+                          <button
+                            onClick={() => setDeleteModalLeave(leave)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -315,11 +426,99 @@ export default function MyLeavesPage() {
         </Card>
       </div>
 
+      {/* Apply Leave Modal */}
       <ApplyLeaveModal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
         onSuccess={reloadLeaves}
       />
+
+      {/* Cancel Confirmation Modal */}
+      {cancelModalLeave && (
+        <Modal
+          isOpen={true}
+          onClose={() => setCancelModalLeave(null)}
+          title="Cancel Leave Request"
+          subtitle="Are you sure you want to cancel this pending application?"
+          maxWidth="sm"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Confirm Cancellation</p>
+                <p className="mt-0.5 text-amber-800">
+                  This will change the status of your <strong>{cancelModalLeave.leave_type}</strong> for{' '}
+                  <strong>{formatDateRange(cancelModalLeave.start_date, cancelModalLeave.end_date)}</strong> to cancelled and remove it from the management approval queue.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCancelModalLeave(null)}
+                disabled={isCancelling}
+              >
+                Keep Request
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleConfirmCancel}
+                disabled={isCancelling}
+                leftIcon={isCancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+              >
+                {isCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalLeave && (
+        <Modal
+          isOpen={true}
+          onClose={() => setDeleteModalLeave(null)}
+          title="Delete Leave Record"
+          subtitle="Permanently remove this leave record from your history"
+          maxWidth="sm"
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Permanent Deletion</p>
+                <p className="mt-0.5 text-red-800">
+                  Are you sure you want to permanently delete this <strong>{deleteModalLeave.leave_type}</strong> record ({formatDateRange(deleteModalLeave.start_date, deleteModalLeave.end_date)})? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteModalLeave(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                leftIcon={isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </AppLayout>
   );
 }

@@ -1418,6 +1418,25 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
   // 2. Insert into Supabase FIRST so foreign key constraints in notifications are satisfied
   if (isSupabaseConfigured() && client) {
     try {
+      // Ensure profile exists in Supabase profiles before inserting leave
+      const { error: profileUpsertErr } = await client.from('profiles').upsert(
+        {
+          id: user.id,
+          auth_user_id: user.auth_user_id || authUser?.id || null,
+          full_name: user.full_name,
+          email: user.email,
+          role: user.role,
+          department: user.department,
+          designation: user.designation,
+          is_active: user.is_active ?? true,
+        },
+        { onConflict: 'id' }
+      );
+
+      if (profileUpsertErr) {
+        console.warn('[Supabase profile pre-upsert warning]:', profileUpsertErr);
+      }
+
       const { error: insertLeaveErr } = await client.from('leave_requests').insert({
         id: newLeave.id,
         user_id: effectiveUserId,
@@ -1430,6 +1449,21 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
       });
       if (insertLeaveErr) {
         console.error('[Supabase leave_requests insert error]:', insertLeaveErr);
+        if (authUser?.id && authUser.id !== effectiveUserId) {
+          const { error: retryErr } = await client.from('leave_requests').insert({
+            id: newLeave.id,
+            user_id: authUser.id,
+            leave_type: leaveType,
+            start_date: startDate,
+            end_date: endDate,
+            reason: reason.trim(),
+            status: 'pending',
+            show_on_calendar: false,
+          });
+          if (retryErr) {
+            console.error('[Supabase leave_requests retry insert error]:', retryErr);
+          }
+        }
       }
     } catch (err) {
       console.error('[Supabase leave insert sync exception]:', err);
@@ -1710,14 +1744,28 @@ export async function rejectLeave(
   return { success: true, message: 'Leave request rejected.' };
 }
 
-export async function cancelLeave(leaveId: string, userId: string): Promise<{ success: boolean; message: string }> {
+export async function cancelLeave(
+  leaveId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
   const leaveIndex = memoryLeaves.findIndex((l) => l.id === leaveId);
   if (leaveIndex === -1) {
     return { success: false, message: 'Leave request not found.' };
   }
 
   const leave = memoryLeaves[leaveIndex];
-  if (leave.user_id !== userId) {
+  const user = getUserById(userId);
+
+  // Robust ownership verification across ID, Auth UUID, and Email
+  const isOwner =
+    leave.user_id === userId ||
+    (user && (
+      leave.user_id === user.id ||
+      (user.auth_user_id && leave.user_id === user.auth_user_id) ||
+      (user.email && (leave.user?.email || '').toLowerCase().trim() === user.email.toLowerCase().trim())
+    ));
+
+  if (!isOwner && user?.role !== 'admin') {
     return { success: false, message: 'Unauthorized to cancel this leave.' };
   }
 
@@ -1739,8 +1787,7 @@ export async function cancelLeave(leaveId: string, userId: string): Promise<{ su
       const { error: cancelErr } = await client
         .from('leave_requests')
         .update({ status: 'cancelled', show_on_calendar: false, updated_at: nowIso })
-        .eq('id', leaveId)
-        .eq('status', 'pending');
+        .eq('id', leaveId);
       if (cancelErr) {
         console.error('[Supabase cancel update error]:', cancelErr);
       }
@@ -1751,6 +1798,59 @@ export async function cancelLeave(leaveId: string, userId: string): Promise<{ su
 
   persistStore();
   return { success: true, message: 'Leave request cancelled successfully.' };
+}
+
+export async function deleteLeave(
+  leaveId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
+  const leaveIndex = memoryLeaves.findIndex((l) => l.id === leaveId);
+  if (leaveIndex === -1) {
+    return { success: false, message: 'Leave request not found.' };
+  }
+
+  const leave = memoryLeaves[leaveIndex];
+  const user = getUserById(userId);
+
+  // Robust ownership verification
+  const isOwner =
+    leave.user_id === userId ||
+    (user && (
+      leave.user_id === user.id ||
+      (user.auth_user_id && leave.user_id === user.auth_user_id) ||
+      (user.email && (leave.user?.email || '').toLowerCase().trim() === user.email.toLowerCase().trim())
+    ));
+
+  if (!isOwner && user?.role !== 'admin') {
+    return { success: false, message: 'Unauthorized to delete this leave.' };
+  }
+
+  if (leave.status === 'approved') {
+    return {
+      success: false,
+      message: 'Approved leave records cannot be deleted directly. Please contact management.',
+    };
+  }
+
+  memoryLeaves = memoryLeaves.filter((l) => l.id !== leaveId);
+
+  const client = getSupabaseClient();
+  if (isSupabaseConfigured() && client) {
+    try {
+      const { error: delErr } = await client
+        .from('leave_requests')
+        .delete()
+        .eq('id', leaveId);
+      if (delErr) {
+        console.error('[Supabase delete leave error]:', delErr);
+      }
+    } catch (err) {
+      console.error('[Supabase delete leave sync exception]:', err);
+    }
+  }
+
+  persistStore();
+  return { success: true, message: 'Leave request deleted successfully.' };
 }
 
 // ==============================================================================
