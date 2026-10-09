@@ -1049,10 +1049,10 @@ export function getCalendarEvents(
     const meetingOccurrences = getAllCalculatedMeetingOccurrences();
     meetingOccurrences.forEach((occurrence) => {
       if (filter?.searchQuery) {
-        const query = filter.searchQuery.toLowerCase();
-        const t = occurrence.title.toLowerCase();
-        const d = (occurrence.description || '').toLowerCase();
-        const typeStr = occurrence.meeting_type.toLowerCase();
+        const query = (filter.searchQuery || '').toLowerCase().trim();
+        const t = (occurrence?.title || '').toLowerCase();
+        const d = (occurrence?.description || '').toLowerCase();
+        const typeStr = (occurrence?.meeting_type || '').toLowerCase();
         if (!t.includes(query) && !d.includes(query) && !typeStr.includes(query)) {
           return;
         }

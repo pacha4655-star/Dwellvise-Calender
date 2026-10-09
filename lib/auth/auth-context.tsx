@@ -266,16 +266,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const unsubscribeStore = subscribeToStore(() => {
-      const updated = getUsers();
-      setUsersList(updated);
-      setUser((prevUser) => {
-        if (!prevUser) return null;
-        const refreshed = updated.find((u) => u.id === prevUser.id || u.email.toLowerCase() === prevUser.email.toLowerCase());
-        if (refreshed) {
-          return normalizeProfileRole(refreshed);
-        }
-        return normalizeProfileRole(prevUser);
-      });
+      try {
+        const updated = getUsers();
+        setUsersList(updated);
+        setUser((prevUser) => {
+          if (!prevUser) return null;
+          const prevEmail = (prevUser.email || '').toLowerCase().trim();
+          const refreshed = updated.find(
+            (u) =>
+              u.id === prevUser.id ||
+              (prevEmail && (u?.email || '').toLowerCase().trim() === prevEmail)
+          );
+          if (refreshed) {
+            return normalizeProfileRole(refreshed);
+          }
+          return normalizeProfileRole(prevUser);
+        });
+      } catch (err) {
+        console.warn('Store subscription update caught error:', err);
+      }
     });
 
     return () => {
@@ -383,7 +392,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           // Check fallback match by ID in local store
           const currentUsers = getUsers();
-          const matched = currentUsers.find((u) => u.id === authUser.id || u.email.toLowerCase() === targetEmail);
+          const matched = currentUsers.find(
+            (u) =>
+              u.id === authUser.id ||
+              (targetEmail && (u?.email || '').toLowerCase().trim() === targetEmail)
+          );
 
           if (matched) {
             if (matched.is_active === false) {
@@ -423,7 +436,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2. Standalone / Demo Mode Authentication (when Supabase is in local/mock mode)
     const currentUsers = getUsers();
-    const matchedUser = currentUsers.find((u) => u.email.toLowerCase() === targetEmail);
+    const matchedUser = currentUsers.find(
+      (u) => (u?.email || '').toLowerCase().trim() === targetEmail
+    );
 
     if (!matchedUser) {
       setIsLoading(false);
@@ -454,7 +469,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthError(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('officeflow_active_user_id');
+      localStorage.removeItem('officeflow_dwellvise_users_v4');
       localStorage.removeItem('officeflow_dwellvise_users_v3');
+      localStorage.removeItem('officeflow_dwellvise_users_v2');
     }
 
     const client = getSupabaseClient();
