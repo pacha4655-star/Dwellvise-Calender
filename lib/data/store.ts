@@ -183,13 +183,18 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
       // Merge profiles ensuring initial structure is preserved
       const merged = [...memoryUsers];
       profilesData.forEach((dbUser) => {
+        if (!dbUser) return;
         const emailLower = (dbUser.email || '').toLowerCase().trim();
         if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
           dbUser.role = 'admin';
         } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
           dbUser.role = 'employee';
         }
-        const idx = merged.findIndex((u) => u.id === dbUser.id || u.email.toLowerCase() === dbUser.email.toLowerCase());
+        const idx = merged.findIndex((u) => 
+          u.id === dbUser.id || 
+          (dbUser.auth_user_id && (u.auth_user_id === dbUser.auth_user_id || u.id === dbUser.auth_user_id)) ||
+          (u.email && dbUser.email && (u.email || '').toLowerCase().trim() === emailLower)
+        );
         if (idx !== -1) {
           merged[idx] = { ...merged[idx], ...dbUser };
         } else {
@@ -369,10 +374,13 @@ export function initializeStore() {
     if (storedUsers) {
       const parsed = JSON.parse(storedUsers) as UserProfile[];
       // Merge initial users: update roles (e.g. Aswin -> admin) and add missing users (e.g. Shalini)
-      const merged = [...parsed];
+      const merged = Array.isArray(parsed) ? [...parsed] : [];
       INITIAL_USERS.forEach((initUser) => {
+        const initEmailLower = (initUser.email || '').toLowerCase().trim();
         const existingIdx = merged.findIndex(
-          (u) => u.email.toLowerCase() === initUser.email.toLowerCase() || u.id === initUser.id
+          (u) =>
+            u.id === initUser.id ||
+            (u.email && (u.email || '').toLowerCase().trim() === initEmailLower)
         );
         if (existingIdx !== -1) {
           merged[existingIdx] = {
@@ -497,7 +505,7 @@ export function upsertUserInMemory(profile: UserProfile): void {
     (u) =>
       u.id === profile.id ||
       (profile.auth_user_id && (u.auth_user_id === profile.auth_user_id || u.id === profile.auth_user_id)) ||
-      (profile.email && u.email.toLowerCase() === profile.email.toLowerCase())
+      (profile.email && u.email && (u.email || '').toLowerCase().trim() === emailLower)
   );
   if (idx !== -1) {
     memoryUsers[idx] = { ...memoryUsers[idx], ...profile };
@@ -509,11 +517,12 @@ export function upsertUserInMemory(profile: UserProfile): void {
 
 export function getUserById(id: string): UserProfile | undefined {
   if (!id) return undefined;
+  const targetIdLower = id.toLowerCase().trim();
   const found = memoryUsers.find(
     (u) =>
       u.id === id ||
       u.auth_user_id === id ||
-      (u.email && u.email.toLowerCase() === id.toLowerCase())
+      (u.email && (u.email || '').toLowerCase().trim() === targetIdLower)
   );
   if (!found) return undefined;
   const emailLower = (found.email || '').toLowerCase().trim();
@@ -1016,7 +1025,8 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
   if (!user && authUser) {
     user = getUserById(authUser.id);
     if (!user && authUser.email) {
-      user = memoryUsers.find((u) => u.email.toLowerCase() === authUser!.email!.toLowerCase());
+      const authEmailLower = authUser.email.toLowerCase().trim();
+      user = memoryUsers.find((u) => u.email && (u.email || '').toLowerCase().trim() === authEmailLower);
     }
   }
 
@@ -1037,7 +1047,7 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
         const { data: dbProfileByEmail } = await client
           .from('profiles')
           .select('*')
-          .eq('email', authUser.email.toLowerCase())
+          .eq('email', authUser.email.toLowerCase().trim())
           .maybeSingle();
 
         if (dbProfileByEmail) {
@@ -1055,7 +1065,7 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
     user = INITIAL_USERS.find(
       (u) =>
         u.id === userId ||
-        (authUser && (u.id === authUser.id || (authUser.email && u.email.toLowerCase() === authUser.email.toLowerCase())))
+        (authUser && (u.id === authUser.id || (authUser.email && (u.email || '').toLowerCase().trim() === (authUser.email || '').toLowerCase().trim())))
     );
     if (user) {
       upsertUserInMemory(user);
@@ -1635,7 +1645,8 @@ export async function addEmployee(employee: Omit<UserProfile, 'id'>): Promise<{ 
     return { success: false, message: 'Name and email are required.' };
   }
 
-  const existing = memoryUsers.find((u) => u.email.toLowerCase() === employee.email.toLowerCase());
+  const emailLower = (employee.email || '').toLowerCase().trim();
+  const existing = memoryUsers.find((u) => (u.email || '').toLowerCase().trim() === emailLower);
   if (existing) {
     return { success: false, message: 'An employee with this email already exists.' };
   }

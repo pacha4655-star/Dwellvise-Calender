@@ -280,7 +280,7 @@ export default function HolidaysPage() {
                         </div>
                       </div>
                       <Badge variant="holiday" size="sm">
-                        {holiday.holiday_type.split(' ')[0]}
+                        {(holiday.holiday_type || 'Government Holiday').split(' ')[0]}
                       </Badge>
                     </div>
 
