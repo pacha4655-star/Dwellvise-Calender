@@ -33,15 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const emailLower = (profile.email || '').toLowerCase().trim();
     if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
       profile.role = 'admin';
-      const client = getSupabaseClient();
-      if (client && isSupabaseConfigured()) {
-        Promise.resolve(
-          client.from('profiles').update({ role: 'admin', is_active: true }).eq('id', profile.id)
-        ).catch(() => {});
-        Promise.resolve(
-          client.from('profiles').update({ role: 'admin', is_active: true }).eq('email', emailLower)
-        ).catch(() => {});
-      }
     } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
       profile.role = 'employee';
     } else {

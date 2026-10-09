@@ -363,11 +363,15 @@ export function initRealtimeNotifications() {
   }
 }
 
+let isStoreInitialized = false;
+
 /**
  * Initialize data store from localStorage if running in browser
  */
 export function initializeStore() {
   if (typeof window === 'undefined') return;
+  if (isStoreInitialized) return;
+  isStoreInitialized = true;
 
   try {
     const storedUsers = localStorage.getItem(STORAGE_KEY_USERS);

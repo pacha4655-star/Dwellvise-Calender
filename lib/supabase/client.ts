@@ -18,17 +18,20 @@ let browserClientInstance: SupabaseClient | null = null;
 export const getSupabaseClient = (): SupabaseClient | null => {
   if (!isSupabaseConfigured()) return null;
   if (!browserClientInstance) {
-    browserClientInstance = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    });
+    try {
+      browserClientInstance = createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: typeof window !== 'undefined',
+          autoRefreshToken: typeof window !== 'undefined',
+          detectSessionInUrl: typeof window !== 'undefined',
+        },
+      });
+    } catch (err) {
+      console.warn('[OfficeFlow Supabase] Client initialization caught error:', err);
+      return null;
+    }
   }
   return browserClientInstance;
 };
-
-export const supabase = isSupabaseConfigured() ? getSupabaseClient() : null;
 
 export const createClient = () => getSupabaseClient();
