@@ -781,20 +781,66 @@ export function getUserById(id: string): UserProfile | undefined {
 }
 
 export function getLeaves(): LeaveRequest[] {
-  return memoryLeaves.map((leave) => ({
-    ...leave,
-    user: memoryUsers.find((u) => u.id === leave.user_id || (u.auth_user_id && u.auth_user_id === leave.user_id)),
-    approver: leave.approved_by ? memoryUsers.find((u) => u.id === leave.approved_by || (u.auth_user_id && u.auth_user_id === leave.approved_by)) : undefined,
-  }));
+  return memoryLeaves.map((leave) => {
+    const user =
+      memoryUsers.find(
+        (u) =>
+          u.id === leave.user_id ||
+          (u.auth_user_id && u.auth_user_id === leave.user_id) ||
+          (u.email && leave.user_id && (u.email || '').toLowerCase().trim() === (leave.user_id || '').toLowerCase().trim())
+      ) ||
+      INITIAL_USERS.find(
+        (u) =>
+          u.id === leave.user_id ||
+          (u.email && leave.user_id && (u.email || '').toLowerCase().trim() === (leave.user_id || '').toLowerCase().trim())
+      );
+
+    const approver = leave.approved_by
+      ? memoryUsers.find(
+          (u) =>
+            u.id === leave.approved_by ||
+            (u.auth_user_id && u.auth_user_id === leave.approved_by)
+        ) ||
+        INITIAL_USERS.find((u) => u.id === leave.approved_by)
+      : undefined;
+
+    return {
+      ...leave,
+      user: user ? normalizeUserRecord(user) : undefined,
+      approver: approver ? normalizeUserRecord(approver) : undefined,
+    };
+  });
 }
 
 export function getLeaveById(id: string): LeaveRequest | undefined {
   const leave = memoryLeaves.find((l) => l.id === id);
   if (!leave) return undefined;
+  const user =
+    memoryUsers.find(
+      (u) =>
+        u.id === leave.user_id ||
+        (u.auth_user_id && u.auth_user_id === leave.user_id) ||
+        (u.email && leave.user_id && (u.email || '').toLowerCase().trim() === (leave.user_id || '').toLowerCase().trim())
+    ) ||
+    INITIAL_USERS.find(
+      (u) =>
+        u.id === leave.user_id ||
+        (u.email && leave.user_id && (u.email || '').toLowerCase().trim() === (leave.user_id || '').toLowerCase().trim())
+    );
+
+  const approver = leave.approved_by
+    ? memoryUsers.find(
+        (u) =>
+          u.id === leave.approved_by ||
+          (u.auth_user_id && u.auth_user_id === leave.approved_by)
+      ) ||
+      INITIAL_USERS.find((u) => u.id === leave.approved_by)
+    : undefined;
+
   return {
     ...leave,
-    user: memoryUsers.find((u) => u.id === leave.user_id || (u.auth_user_id && u.auth_user_id === leave.user_id)),
-    approver: leave.approved_by ? memoryUsers.find((u) => u.id === leave.approved_by || (u.auth_user_id && u.auth_user_id === leave.approved_by)) : undefined,
+    user: user ? normalizeUserRecord(user) : undefined,
+    approver: approver ? normalizeUserRecord(approver) : undefined,
   };
 }
 

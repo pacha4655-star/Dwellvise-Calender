@@ -9,6 +9,7 @@ import {
   rejectLeave,
   toggleLeaveCalendarVisibility,
   subscribeToStore,
+  syncDatabaseWithSupabase,
 } from '@/lib/data/store';
 import { LeaveRequest } from '@/types';
 import { formatDisplayDate, formatDateRange, calculateDaysCount } from '@/lib/utils/date-utils';
@@ -29,10 +30,12 @@ import {
   FileText,
   User,
   EyeOff,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 
 export default function AdminLeaveRequestsPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isLoading: isAuthLoading } = useAuth();
   const { success, error: toastError } = useToast();
 
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
@@ -42,14 +45,33 @@ export default function AdminLeaveRequestsPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [targetRejectId, setTargetRejectId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSyncingData, setIsSyncingData] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const loadData = () => {
     setLeaves(getLeaves());
   };
 
+  const handleManualSync = async () => {
+    setIsSyncingData(true);
+    try {
+      await syncDatabaseWithSupabase();
+      loadData();
+      success('Workspace leave requests synchronized.', 'Synced');
+    } catch {
+      toastError('Failed to refresh leave requests.');
+    } finally {
+      setIsSyncingData(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
+    setIsSyncingData(true);
+    syncDatabaseWithSupabase()
+      .then(() => loadData())
+      .finally(() => setIsSyncingData(false));
+
     const unsub = subscribeToStore(loadData);
 
     if (typeof window !== 'undefined') {
@@ -159,7 +181,7 @@ export default function AdminLeaveRequestsPage() {
 
         {/* Filter Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-subtle">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-semibold text-slate-500">Status View:</span>
             <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
               {[
@@ -181,20 +203,49 @@ export default function AdminLeaveRequestsPage() {
                 </button>
               ))}
             </div>
+
+            <button
+              onClick={handleManualSync}
+              disabled={isSyncingData}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-all disabled:opacity-50"
+              title="Sync latest records from workspace server"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isSyncingData ? 'animate-spin text-blue-600' : ''}`} />
+              <span>{isSyncingData ? 'Syncing...' : 'Sync'}</span>
+            </button>
           </div>
 
-          <span className="text-xs font-bold text-slate-500">
-            {filteredLeaves.length} {filteredLeaves.length === 1 ? 'Application' : 'Applications'}
-          </span>
+          <div className="flex items-center gap-2">
+            {isSyncingData && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Updating
+              </span>
+            )}
+            <span className="text-xs font-bold text-slate-500">
+              {filteredLeaves.length} {filteredLeaves.length === 1 ? 'Application' : 'Applications'}
+            </span>
+          </div>
         </div>
 
         {/* Requests Table */}
         <Card className="border border-slate-200 overflow-hidden">
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto">
-            {filteredLeaves.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 text-xs">
-                No leave requests found for the selected status filter.
+            {isSyncingData && filteredLeaves.length === 0 ? (
+              <div className="p-12 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <p className="font-semibold">Syncing workspace leave applications...</p>
+              </div>
+            ) : filteredLeaves.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 text-xs space-y-2">
+                <p>No leave requests found for the selected status filter.</p>
+                <button
+                  onClick={handleManualSync}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" /> Check for New Requests
+                </button>
               </div>
             ) : (
               <table className="w-full text-left border-collapse text-xs">
@@ -358,9 +409,20 @@ export default function AdminLeaveRequestsPage() {
 
           {/* Mobile Card View (< 768px) */}
           <div className="md:hidden p-3 space-y-3">
-            {filteredLeaves.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                No leave requests found for the selected status filter.
+            {isSyncingData && filteredLeaves.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                <p className="font-semibold">Syncing workspace leave applications...</p>
+              </div>
+            ) : filteredLeaves.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-xs space-y-2">
+                <p>No leave requests found for the selected status filter.</p>
+                <button
+                  onClick={handleManualSync}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" /> Check for New Requests
+                </button>
               </div>
             ) : (
               filteredLeaves.map((leave) => {
