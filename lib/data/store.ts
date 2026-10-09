@@ -57,22 +57,79 @@ export function generateUUID(): string {
 
 function normalizeUserRecord(u: any): UserProfile {
   const emailLower = (u?.email || '').toLowerCase().trim();
+  const nameLower = (u?.full_name || u?.name || '').toLowerCase().trim();
   let role = ((u?.role || 'employee').toLowerCase() === 'admin' ? 'admin' : 'employee') as any;
-  if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
+  if (
+    emailLower === 'aswin@dwellvise.com' ||
+    emailLower === 'dinesh@dwellvise.com' ||
+    nameLower === 'aswin' ||
+    nameLower === 'dinesh'
+  ) {
     role = 'admin';
-  } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
+  } else if (
+    emailLower === 'pachamuthu@dwellvise.com' ||
+    emailLower === 'shalini@dwellvise.com' ||
+    nameLower === 'pachamuthu' ||
+    nameLower === 'shalini'
+  ) {
     role = 'employee';
   }
+
+  const defaultEmail =
+    nameLower === 'aswin'
+      ? 'aswin@dwellvise.com'
+      : nameLower === 'dinesh'
+      ? 'dinesh@dwellvise.com'
+      : nameLower === 'pachamuthu'
+      ? 'pachamuthu@dwellvise.com'
+      : nameLower === 'shalini'
+      ? 'shalini@dwellvise.com'
+      : '';
+
+  const defaultFullName =
+    emailLower === 'aswin@dwellvise.com'
+      ? 'Aswin'
+      : emailLower === 'dinesh@dwellvise.com'
+      ? 'Dinesh'
+      : emailLower === 'pachamuthu@dwellvise.com'
+      ? 'Pachamuthu'
+      : emailLower === 'shalini@dwellvise.com'
+      ? 'Shalini'
+      : 'Team Member';
 
   return {
     id: String(u?.id || generateUUID()),
     auth_user_id: u?.auth_user_id ? String(u.auth_user_id) : undefined,
-    email: String(u?.email || ''),
-    full_name: String(u?.full_name || u?.name || 'Team Member'),
+    email: String(u?.email || defaultEmail),
+    full_name: String(u?.full_name || u?.name || defaultFullName),
     role,
-    department: String(u?.department || 'Engineering'),
-    designation: String(u?.designation || (role === 'admin' ? 'Co-founder & Director' : 'Software Engineer')),
-    phone: u?.phone ? String(u.phone) : undefined,
+    department: String(
+      u?.department ||
+        (role === 'admin' && (nameLower === 'dinesh' || emailLower === 'dinesh@dwellvise.com')
+          ? 'Management'
+          : 'Engineering')
+    ),
+    designation: String(
+      u?.designation ||
+        (nameLower === 'dinesh' || emailLower === 'dinesh@dwellvise.com'
+          ? 'Operations & Engineering Lead'
+          : nameLower === 'aswin' || emailLower === 'aswin@dwellvise.com'
+          ? 'Software Engineer'
+          : nameLower === 'pachamuthu' || emailLower === 'pachamuthu@dwellvise.com'
+          ? 'Senior Software Engineer'
+          : 'Software Engineer')
+    ),
+    phone: u?.phone
+      ? String(u.phone)
+      : nameLower === 'dinesh' || emailLower === 'dinesh@dwellvise.com'
+      ? '+91 98400 11223'
+      : nameLower === 'aswin' || emailLower === 'aswin@dwellvise.com'
+      ? '+91 98400 33445'
+      : nameLower === 'pachamuthu' || emailLower === 'pachamuthu@dwellvise.com'
+      ? '+91 98400 22334'
+      : nameLower === 'shalini' || emailLower === 'shalini@dwellvise.com'
+      ? '+91 98400 44556'
+      : undefined,
     avatar_url: u?.avatar_url ? String(u.avatar_url) : undefined,
     is_active: u?.is_active ?? true,
     created_at: String(u?.created_at || '2026-10-01T00:00:00Z'),
@@ -192,7 +249,10 @@ async function safeFetchProfiles(): Promise<UserProfile[] | null> {
   if (!client) return null;
   try {
     const res = await client.from('profiles').select('*');
-    return (res.data as UserProfile[]) || null;
+    if (res.data) {
+      return (res.data as any[]).map(normalizeUserRecord);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -296,14 +356,10 @@ export async function syncDatabaseWithSupabase(): Promise<{ success: boolean; er
     if (profilesData && profilesData.length > 0) {
       // Merge profiles ensuring initial structure is preserved
       const merged = [...memoryUsers];
-      profilesData.forEach((dbUser) => {
-        if (!dbUser) return;
+      profilesData.forEach((rawDbUser) => {
+        if (!rawDbUser) return;
+        const dbUser = normalizeUserRecord(rawDbUser);
         const emailLower = (dbUser.email || '').toLowerCase().trim();
-        if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
-          dbUser.role = 'admin';
-        } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
-          dbUser.role = 'employee';
-        }
         const idx = merged.findIndex((u) => 
           u.id === dbUser.id || 
           (dbUser.auth_user_id && (u.auth_user_id === dbUser.auth_user_id || u.id === dbUser.auth_user_id)) ||
@@ -690,15 +746,7 @@ export function getSyncStatus() {
 // ==============================================================================
 
 export function getUsers(): UserProfile[] {
-  return memoryUsers.map((u) => {
-    const emailLower = (u?.email || '').toLowerCase().trim();
-    if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
-      return { ...u, role: 'admin' as const };
-    } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
-      return { ...u, role: 'employee' as const };
-    }
-    return u;
-  });
+  return memoryUsers.map(normalizeUserRecord);
 }
 
 export function upsertUserInMemory(profile: UserProfile): void {
@@ -729,13 +777,7 @@ export function getUserById(id: string): UserProfile | undefined {
       (u.email && (u.email || '').toLowerCase().trim() === targetIdLower)
   );
   if (!found) return undefined;
-  const emailLower = (found.email || '').toLowerCase().trim();
-  if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
-    return { ...found, role: 'admin' as const };
-  } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
-    return { ...found, role: 'employee' as const };
-  }
-  return found;
+  return normalizeUserRecord(found);
 }
 
 export function getLeaves(): LeaveRequest[] {
@@ -1366,18 +1408,43 @@ export async function applyLeave(payload: ApplyLeavePayload): Promise<{ success:
         console.error('[Fetch active admins error]:', adminErr);
       }
       if (adminProfiles && adminProfiles.length > 0) {
-        activeAdmins = adminProfiles as UserProfile[];
+        activeAdmins = (adminProfiles as any[]).map(normalizeUserRecord);
       }
     } catch (err) {
       console.warn('Supabase active admin query error:', err);
     }
   }
-  if (activeAdmins.length === 0) {
-    activeAdmins = memoryUsers.filter((u) => u.role === 'admin' && (u.is_active ?? true));
-  }
+
+  // Combine fetched admins with all memory admins (Dinesh, Aswin, etc.)
+  const combinedAdminMap = new Map<string, UserProfile>();
+  activeAdmins.forEach((a) => combinedAdminMap.set(a.id, a));
+  memoryUsers
+    .filter((u) => {
+      const norm = normalizeUserRecord(u);
+      return norm.role === 'admin' && (norm.is_active ?? true);
+    })
+    .forEach((a) => {
+      const norm = normalizeUserRecord(a);
+      const emailLower = (norm.email || '').toLowerCase().trim();
+      let alreadyPresent = false;
+      for (const existing of combinedAdminMap.values()) {
+        if (
+          existing.id === norm.id ||
+          (emailLower && (existing.email || '').toLowerCase().trim() === emailLower)
+        ) {
+          alreadyPresent = true;
+          break;
+        }
+      }
+      if (!alreadyPresent) {
+        combinedAdminMap.set(norm.id, norm);
+      }
+    });
+
+  const finalAdmins = Array.from(combinedAdminMap.values());
 
   // Create separate notification row for EACH active admin (Dinesh, Aswin, etc.)
-  for (const admin of activeAdmins) {
+  for (const admin of finalAdmins) {
     // Do not send "New Leave Request" notification to the submitter even if the submitter is an admin
     if (admin.id === effectiveUserId || admin.id === user.id) continue;
 

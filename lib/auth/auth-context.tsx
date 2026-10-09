@@ -31,14 +31,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const normalizeProfileRole = useCallback((profile: UserProfile): UserProfile => {
     if (!profile) return profile;
     const emailLower = (profile.email || '').toLowerCase().trim();
-    if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
-      profile.role = 'admin';
-    } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
-      profile.role = 'employee';
-    } else {
-      profile.role = ((profile.role || 'employee').toLowerCase() === 'admin' ? 'admin' : 'employee') as Role;
+    const nameLower = (profile.full_name || '').toLowerCase().trim();
+    let role: Role = ((profile.role || 'employee').toLowerCase() === 'admin' ? 'admin' : 'employee') as Role;
+    if (
+      emailLower === 'aswin@dwellvise.com' ||
+      emailLower === 'dinesh@dwellvise.com' ||
+      nameLower === 'aswin' ||
+      nameLower === 'dinesh'
+    ) {
+      role = 'admin';
+    } else if (
+      emailLower === 'pachamuthu@dwellvise.com' ||
+      emailLower === 'shalini@dwellvise.com' ||
+      nameLower === 'pachamuthu' ||
+      nameLower === 'shalini'
+    ) {
+      role = 'employee';
     }
-    return profile;
+    return {
+      ...profile,
+      role,
+    };
   }, []);
 
   /**
@@ -62,7 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (data) {
-          const profile = normalizeProfileRole(data as UserProfile);
+          const profile = normalizeProfileRole({
+            ...data,
+            email: data.email || authEmail || '',
+          } as UserProfile);
           upsertUserInMemory(profile);
           return profile;
         }
@@ -79,7 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (authUserData) {
-          const profile = normalizeProfileRole(authUserData as UserProfile);
+          const profile = normalizeProfileRole({
+            ...authUserData,
+            email: authUserData.email || authEmail || '',
+          } as UserProfile);
           upsertUserInMemory(profile);
           return profile;
         }
@@ -97,7 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           if (emailData) {
-            const profile = normalizeProfileRole(emailData as UserProfile);
+            const profile = normalizeProfileRole({
+              ...emailData,
+              email: emailData.email || authEmail || '',
+            } as UserProfile);
             // Auto-link auth_user_id for seamless future lookups
             try {
               await client
@@ -384,10 +406,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined') {
               localStorage.setItem('officeflow_active_user_id', dbProfile.id);
             }
-            upsertUserInMemory(dbProfile);
-            setUser(dbProfile);
+            const normalized = normalizeProfileRole(dbProfile);
+            upsertUserInMemory(normalized);
+            setUser(normalized);
             setIsLoading(false);
-            return { success: true, message: `Welcome back, ${dbProfile.full_name}!` };
+            return { success: true, message: `Welcome back, ${normalized.full_name}!` };
           }
 
           // Check fallback match by ID in local store
@@ -407,13 +430,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               };
             }
 
+            const normalized = normalizeProfileRole(matched);
             if (typeof window !== 'undefined') {
-              localStorage.setItem('officeflow_active_user_id', matched.id);
+              localStorage.setItem('officeflow_active_user_id', normalized.id);
             }
-            upsertUserInMemory(matched);
-            setUser(matched);
+            upsertUserInMemory(normalized);
+            setUser(normalized);
             setIsLoading(false);
-            return { success: true, message: `Welcome back, ${matched.full_name}!` };
+            return { success: true, message: `Welcome back, ${normalized.full_name}!` };
           }
 
           setIsLoading(false);
@@ -456,12 +480,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    const normalized = normalizeProfileRole(matchedUser);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('officeflow_active_user_id', matchedUser.id);
+      localStorage.setItem('officeflow_active_user_id', normalized.id);
     }
-    setUser(matchedUser);
+    upsertUserInMemory(normalized);
+    setUser(normalized);
     setIsLoading(false);
-    return { success: true, message: `Welcome back, ${matchedUser.full_name}!` };
+    return { success: true, message: `Welcome back, ${normalized.full_name}!` };
   };
 
   const logout = async () => {
@@ -497,12 +523,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const userEmailLower = (user?.email || '').toLowerCase().trim();
+  const userNameLower = (user?.full_name || '').toLowerCase().trim();
+  const isUserAdmin = Boolean(
+    user &&
+    (
+      (user.role as string)?.toLowerCase() === 'admin' ||
+      userEmailLower === 'dinesh@dwellvise.com' ||
+      userEmailLower === 'aswin@dwellvise.com' ||
+      userNameLower === 'dinesh' ||
+      userNameLower === 'aswin'
+    ) &&
+    (user.is_active ?? true)
+  );
+
   return (
     <AuthContext.Provider
       value={{
         user,
         usersList,
-        isAdmin: Boolean(user?.role && (user.role as string).toLowerCase() === 'admin' && (user.is_active ?? true)),
+        isAdmin: isUserAdmin,
         isLoading,
         authError,
         login,
