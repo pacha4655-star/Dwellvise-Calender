@@ -138,6 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const { data, error } = await client.auth.getSession();
           if (error) {
             console.warn('Supabase getSession error:', error.message);
+            try {
+              await client.auth.signOut();
+            } catch {}
             setUser(null);
             setIsLoading(false);
             return;
@@ -161,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
 
             // Fallback match in loaded users by ID or email
-            const matched = currentUsers.find((u) => u.id === authUser.id || u.email.toLowerCase() === (authUser.email || '').toLowerCase());
+            const matched = currentUsers.find((u) => u.id === authUser.id || (u.email && u.email.toLowerCase() === (authUser.email || '').toLowerCase()));
 
             if (matched) {
               if (matched.is_active === false) {
@@ -170,7 +173,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setIsLoading(false);
                 return;
               }
-              setUser(matched);
+              const normalized = normalizeProfileRole(matched);
+              upsertUserInMemory(normalized);
+              setUser(normalized);
               setIsLoading(false);
               return;
             }
@@ -202,7 +207,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (storedActiveUserId) {
           const found = currentUsers.find((u) => u.id === storedActiveUserId);
           if (found && found.is_active !== false) {
-            setUser(found);
+            const normalized = normalizeProfileRole(found);
+            setUser(normalized);
             setIsLoading(false);
             return;
           }
@@ -218,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchProfileForAuthUser]);
+  }, [fetchProfileForAuthUser, normalizeProfileRole]);
 
   useEffect(() => {
     loadCurrentUser();
@@ -243,10 +249,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(dbProfile);
             } else {
               const currentUsers = getUsers();
-              const matched = currentUsers.find((u) => u.id === authUser.id || u.email.toLowerCase() === (authUser.email || '').toLowerCase());
+              const matched = currentUsers.find((u) => u.id === authUser.id || (u.email && u.email.toLowerCase() === (authUser.email || '').toLowerCase()));
               if (matched && matched.is_active !== false) {
-                upsertUserInMemory(matched);
-                setUser(matched);
+                const normalized = normalizeProfileRole(matched);
+                upsertUserInMemory(normalized);
+                setUser(normalized);
               }
             }
             setIsLoading(false);

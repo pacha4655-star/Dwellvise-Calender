@@ -23,12 +23,26 @@ import { calculateDaysCount, calculateWorkingDays, formatDisplayDate } from '@/l
 import { calculateScheduleOccurrences, getNextUpcomingMeeting } from '@/lib/meetings/meeting-scheduler';
 import { isSupabaseConfigured, getSupabaseClient } from '@/lib/supabase/client';
 
-const STORAGE_KEY_USERS = 'officeflow_dwellvise_users_v3';
-const STORAGE_KEY_LEAVES = 'officeflow_dwellvise_leaves_v3';
-const STORAGE_KEY_HOLIDAYS = 'officeflow_dwellvise_holidays_v3';
-const STORAGE_KEY_MENTIONS = 'officeflow_dwellvise_mentions_v3';
-const STORAGE_KEY_NOTIFICATIONS = 'officeflow_dwellvise_notifications_v3';
-const STORAGE_KEY_MEETINGS = 'officeflow_dwellvise_meetings_v3';
+const STORAGE_KEY_USERS = 'officeflow_dwellvise_users_v4';
+const STORAGE_KEY_LEAVES = 'officeflow_dwellvise_leaves_v4';
+const STORAGE_KEY_HOLIDAYS = 'officeflow_dwellvise_holidays_v4';
+const STORAGE_KEY_MENTIONS = 'officeflow_dwellvise_mentions_v4';
+const STORAGE_KEY_NOTIFICATIONS = 'officeflow_dwellvise_notifications_v4';
+const STORAGE_KEY_MEETINGS = 'officeflow_dwellvise_meetings_v4';
+
+// Legacy keys for automatic migration
+const LEGACY_STORAGE_KEYS = [
+  'officeflow_dwellvise_users_v3',
+  'officeflow_dwellvise_leaves_v3',
+  'officeflow_dwellvise_holidays_v3',
+  'officeflow_dwellvise_mentions_v3',
+  'officeflow_dwellvise_notifications_v3',
+  'officeflow_dwellvise_meetings_v3',
+  'officeflow_users',
+  'officeflow_leaves',
+  'officeflow_holidays',
+  'officeflow_mentions',
+];
 
 export function generateUUID(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -41,11 +55,105 @@ export function generateUUID(): string {
   });
 }
 
+function normalizeUserRecord(u: any): UserProfile {
+  const emailLower = (u?.email || '').toLowerCase().trim();
+  let role = ((u?.role || 'employee').toLowerCase() === 'admin' ? 'admin' : 'employee') as any;
+  if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
+    role = 'admin';
+  } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
+    role = 'employee';
+  }
+
+  return {
+    id: String(u?.id || generateUUID()),
+    auth_user_id: u?.auth_user_id ? String(u.auth_user_id) : undefined,
+    email: String(u?.email || ''),
+    full_name: String(u?.full_name || u?.name || 'Team Member'),
+    role,
+    department: String(u?.department || 'Engineering'),
+    designation: String(u?.designation || (role === 'admin' ? 'Co-founder & Director' : 'Software Engineer')),
+    phone: u?.phone ? String(u.phone) : undefined,
+    avatar_url: u?.avatar_url ? String(u.avatar_url) : undefined,
+    is_active: u?.is_active ?? true,
+    created_at: String(u?.created_at || '2026-10-01T00:00:00Z'),
+    updated_at: u?.updated_at ? String(u.updated_at) : undefined,
+  };
+}
+
+function normalizeLeaveRecord(l: any): LeaveRequest {
+  return {
+    id: String(l?.id || generateUUID()),
+    user_id: String(l?.user_id || l?.userId || ''),
+    leave_type: (l?.leave_type || l?.leaveType || 'Casual Leave') as LeaveType,
+    start_date: String(l?.start_date || l?.startDate || '2026-10-01'),
+    end_date: String(l?.end_date || l?.endDate || l?.start_date || l?.startDate || '2026-10-01'),
+    reason: String(l?.reason || ''),
+    status: (String(l?.status || 'pending').toLowerCase() as any),
+    show_on_calendar: Boolean(l?.show_on_calendar ?? l?.showOnCalendar ?? true),
+    approved_by: l?.approved_by || l?.approvedBy || null,
+    approved_at: l?.approved_at || l?.approvedAt || l?.approval_date || null,
+    rejection_reason: l?.rejection_reason || l?.rejectionReason || null,
+    created_at: String(l?.created_at || l?.createdAt || new Date().toISOString()),
+    updated_at: l?.updated_at ? String(l.updated_at) : undefined,
+  };
+}
+
+function normalizeHolidayRecord(h: any): GovernmentHoliday {
+  const validHolidayTypes = ['Government Holiday', 'Public Holiday', 'Restricted Holiday', 'Regional Holiday'];
+  const holidayType = validHolidayTypes.includes(h?.holiday_type || h?.holidayType)
+    ? (h?.holiday_type || h?.holidayType)
+    : 'Government Holiday';
+
+  return {
+    id: String(h?.id || generateUUID()),
+    name: String(h?.name || 'Holiday'),
+    date: String(h?.date || '2026-01-01'),
+    description: String(h?.description || ''),
+    holiday_type: holidayType,
+    is_mandatory: h?.is_mandatory !== undefined ? Boolean(h.is_mandatory) : h?.is_restricted !== undefined ? !Boolean(h.is_restricted) : true,
+    created_by: h?.created_by ? String(h.created_by) : undefined,
+    created_at: h?.created_at ? String(h.created_at) : undefined,
+    updated_at: h?.updated_at ? String(h.updated_at) : undefined,
+  };
+}
+
+function normalizeMentionRecord(m: any): ManualCalendarEvent {
+  return {
+    id: String(m?.id || generateUUID()),
+    title: String(m?.title || 'Notice'),
+    start_date: String(m?.start_date || m?.startDate || '2026-10-01'),
+    end_date: String(m?.end_date || m?.endDate || m?.start_date || m?.startDate || '2026-10-01'),
+    event_type: (m?.event_type || m?.eventType || 'notice') as ManualEventType,
+    description: String(m?.description || ''),
+    created_by: String(m?.created_by || m?.createdBy || ''),
+    created_at: String(m?.created_at || m?.createdAt || new Date().toISOString()),
+  };
+}
+
+function normalizeNotificationRecord(n: any): AppNotification {
+  return {
+    id: String(n?.id || generateUUID()),
+    recipient_user_id: String(n?.recipient_user_id || n?.recipient_id || n?.userId || ''),
+    recipient_id: String(n?.recipient_user_id || n?.recipient_id || n?.userId || ''),
+    sender_id: n?.sender_id ? String(n.sender_id) : null,
+    title: String(n?.title || 'Notification'),
+    message: String(n?.message || ''),
+    type: String(n?.type || 'system') as any,
+    leave_request_id: n?.leave_request_id || n?.reference_id || null,
+    reference_id: n?.leave_request_id || n?.reference_id || null,
+    is_read: Boolean(n?.is_read ?? n?.isRead ?? false),
+    isRead: Boolean(n?.is_read ?? n?.isRead ?? false),
+    created_at: String(n?.created_at || n?.createdAt || new Date().toISOString()),
+    createdAt: String(n?.created_at || n?.createdAt || new Date().toISOString()),
+    link: n?.link ? String(n.link) : undefined,
+  };
+}
+
 // In-Memory State
-let memoryUsers: UserProfile[] = [...INITIAL_USERS];
-let memoryLeaves: LeaveRequest[] = [...INITIAL_LEAVES];
-let memoryHolidays: GovernmentHoliday[] = [...INITIAL_HOLIDAYS];
-let memoryMentions: ManualCalendarEvent[] = [...INITIAL_MENTIONS];
+let memoryUsers: UserProfile[] = INITIAL_USERS.map(normalizeUserRecord);
+let memoryLeaves: LeaveRequest[] = INITIAL_LEAVES.map(normalizeLeaveRecord);
+let memoryHolidays: GovernmentHoliday[] = INITIAL_HOLIDAYS.map(normalizeHolidayRecord);
+let memoryMentions: ManualCalendarEvent[] = INITIAL_MENTIONS.map(normalizeMentionRecord);
 let memoryNotifications: AppNotification[] = [];
 let memoryMeetingSchedules: MeetingSchedule[] = [...INITIAL_MEETING_SCHEDULES];
 
@@ -53,7 +161,13 @@ type Listener = () => void;
 const listeners: Set<Listener> = new Set();
 
 function notifyListeners() {
-  listeners.forEach((listener) => listener());
+  listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (err) {
+      console.warn('Listener execution error:', err);
+    }
+  });
 }
 
 let isSyncing = false;
@@ -374,76 +488,166 @@ export function initializeStore() {
   isStoreInitialized = true;
 
   try {
-    const storedUsers = localStorage.getItem(STORAGE_KEY_USERS);
-    if (storedUsers) {
-      const parsed = JSON.parse(storedUsers) as UserProfile[];
-      // Merge initial users: update roles (e.g. Aswin -> admin) and add missing users (e.g. Shalini)
-      const merged = Array.isArray(parsed) ? [...parsed] : [];
-      INITIAL_USERS.forEach((initUser) => {
-        const initEmailLower = (initUser.email || '').toLowerCase().trim();
-        const existingIdx = merged.findIndex(
-          (u) =>
-            u.id === initUser.id ||
-            (u.email && (u.email || '').toLowerCase().trim() === initEmailLower)
-        );
-        if (existingIdx !== -1) {
-          merged[existingIdx] = {
-            ...merged[existingIdx],
-            full_name: initUser.full_name,
-            role: initUser.role,
-            department: merged[existingIdx].department || initUser.department,
-            designation: merged[existingIdx].designation || initUser.designation,
-            is_active: merged[existingIdx].is_active ?? true,
-          };
+    // 1. Users
+    let rawUsers = localStorage.getItem(STORAGE_KEY_USERS);
+    if (!rawUsers) {
+      // Check legacy key
+      rawUsers = localStorage.getItem('officeflow_dwellvise_users_v3');
+    }
+    if (rawUsers) {
+      try {
+        const parsed = JSON.parse(rawUsers);
+        if (Array.isArray(parsed)) {
+          const normalized = parsed.map(normalizeUserRecord);
+          // Ensure seed users exist and have updated roles
+          INITIAL_USERS.forEach((initUser) => {
+            const initEmailLower = (initUser.email || '').toLowerCase().trim();
+            const existingIdx = normalized.findIndex(
+              (u) =>
+                u.id === initUser.id ||
+                (u.email && (u.email || '').toLowerCase().trim() === initEmailLower)
+            );
+            if (existingIdx !== -1) {
+              normalized[existingIdx] = {
+                ...normalized[existingIdx],
+                full_name: initUser.full_name,
+                role: initUser.role,
+                department: normalized[existingIdx].department || initUser.department,
+                designation: normalized[existingIdx].designation || initUser.designation,
+                is_active: normalized[existingIdx].is_active ?? true,
+              };
+            } else {
+              normalized.push(normalizeUserRecord(initUser));
+            }
+          });
+          memoryUsers = normalized;
         } else {
-          merged.push(initUser);
+          memoryUsers = INITIAL_USERS.map(normalizeUserRecord);
         }
-      });
-      memoryUsers = merged;
-      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(memoryUsers));
+      } catch {
+        memoryUsers = INITIAL_USERS.map(normalizeUserRecord);
+      }
     } else {
-      memoryUsers = [...INITIAL_USERS];
-      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(INITIAL_USERS));
+      memoryUsers = INITIAL_USERS.map(normalizeUserRecord);
     }
+    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(memoryUsers));
 
-    const storedLeaves = localStorage.getItem(STORAGE_KEY_LEAVES);
-    if (storedLeaves) {
-      memoryLeaves = JSON.parse(storedLeaves);
+    // 2. Leaves
+    let rawLeaves = localStorage.getItem(STORAGE_KEY_LEAVES);
+    if (!rawLeaves) {
+      rawLeaves = localStorage.getItem('officeflow_dwellvise_leaves_v3');
+    }
+    if (rawLeaves) {
+      try {
+        const parsedLeaves = JSON.parse(rawLeaves);
+        if (Array.isArray(parsedLeaves)) {
+          memoryLeaves = parsedLeaves.map(normalizeLeaveRecord);
+        } else {
+          memoryLeaves = INITIAL_LEAVES.map(normalizeLeaveRecord);
+        }
+      } catch {
+        memoryLeaves = INITIAL_LEAVES.map(normalizeLeaveRecord);
+      }
     } else {
-      localStorage.setItem(STORAGE_KEY_LEAVES, JSON.stringify(INITIAL_LEAVES));
+      memoryLeaves = INITIAL_LEAVES.map(normalizeLeaveRecord);
     }
+    localStorage.setItem(STORAGE_KEY_LEAVES, JSON.stringify(memoryLeaves));
 
-    const storedHolidays = localStorage.getItem(STORAGE_KEY_HOLIDAYS);
-    if (storedHolidays) {
-      memoryHolidays = JSON.parse(storedHolidays);
+    // 3. Holidays
+    let rawHolidays = localStorage.getItem(STORAGE_KEY_HOLIDAYS);
+    if (!rawHolidays) {
+      rawHolidays = localStorage.getItem('officeflow_dwellvise_holidays_v3');
+    }
+    if (rawHolidays) {
+      try {
+        const parsedHolidays = JSON.parse(rawHolidays);
+        if (Array.isArray(parsedHolidays)) {
+          memoryHolidays = parsedHolidays.map(normalizeHolidayRecord);
+        } else {
+          memoryHolidays = INITIAL_HOLIDAYS.map(normalizeHolidayRecord);
+        }
+      } catch {
+        memoryHolidays = INITIAL_HOLIDAYS.map(normalizeHolidayRecord);
+      }
     } else {
-      localStorage.setItem(STORAGE_KEY_HOLIDAYS, JSON.stringify(INITIAL_HOLIDAYS));
+      memoryHolidays = INITIAL_HOLIDAYS.map(normalizeHolidayRecord);
     }
+    localStorage.setItem(STORAGE_KEY_HOLIDAYS, JSON.stringify(memoryHolidays));
 
-    const storedMentions = localStorage.getItem(STORAGE_KEY_MENTIONS);
-    if (storedMentions) {
-      memoryMentions = JSON.parse(storedMentions);
+    // 4. Mentions
+    let rawMentions = localStorage.getItem(STORAGE_KEY_MENTIONS);
+    if (!rawMentions) {
+      rawMentions = localStorage.getItem('officeflow_dwellvise_mentions_v3');
+    }
+    if (rawMentions) {
+      try {
+        const parsedMentions = JSON.parse(rawMentions);
+        if (Array.isArray(parsedMentions)) {
+          memoryMentions = parsedMentions.map(normalizeMentionRecord);
+        } else {
+          memoryMentions = INITIAL_MENTIONS.map(normalizeMentionRecord);
+        }
+      } catch {
+        memoryMentions = INITIAL_MENTIONS.map(normalizeMentionRecord);
+      }
     } else {
-      localStorage.setItem(STORAGE_KEY_MENTIONS, JSON.stringify(INITIAL_MENTIONS));
+      memoryMentions = INITIAL_MENTIONS.map(normalizeMentionRecord);
     }
+    localStorage.setItem(STORAGE_KEY_MENTIONS, JSON.stringify(memoryMentions));
 
-    const storedNotifications = localStorage.getItem(STORAGE_KEY_NOTIFICATIONS);
-    if (storedNotifications) {
-      memoryNotifications = JSON.parse(storedNotifications);
+    // 5. Notifications
+    let rawNotifs = localStorage.getItem(STORAGE_KEY_NOTIFICATIONS);
+    if (!rawNotifs) {
+      rawNotifs = localStorage.getItem('officeflow_dwellvise_notifications_v3');
     }
-
-    const storedMeetings = localStorage.getItem(STORAGE_KEY_MEETINGS);
-    if (storedMeetings) {
-      const parsedMeetings = JSON.parse(storedMeetings) as MeetingSchedule[];
-      const mergedMeetings = [...parsedMeetings];
-      INITIAL_MEETING_SCHEDULES.forEach((initM) => {
-        const exists = mergedMeetings.some((m) => m.meeting_type === initM.meeting_type);
-        if (!exists) mergedMeetings.push(initM);
-      });
-      memoryMeetingSchedules = mergedMeetings;
+    if (rawNotifs) {
+      try {
+        const parsedNotifs = JSON.parse(rawNotifs);
+        if (Array.isArray(parsedNotifs)) {
+          memoryNotifications = parsedNotifs.map(normalizeNotificationRecord);
+        } else {
+          memoryNotifications = [];
+        }
+      } catch {
+        memoryNotifications = [];
+      }
     } else {
-      localStorage.setItem(STORAGE_KEY_MEETINGS, JSON.stringify(INITIAL_MEETING_SCHEDULES));
+      memoryNotifications = [];
     }
+    localStorage.setItem(STORAGE_KEY_NOTIFICATIONS, JSON.stringify(memoryNotifications));
+
+    // 6. Meetings
+    let rawMeetings = localStorage.getItem(STORAGE_KEY_MEETINGS);
+    if (!rawMeetings) {
+      rawMeetings = localStorage.getItem('officeflow_dwellvise_meetings_v3');
+    }
+    if (rawMeetings) {
+      try {
+        const parsedMeetings = JSON.parse(rawMeetings);
+        if (Array.isArray(parsedMeetings)) {
+          const mergedMeetings = [...parsedMeetings];
+          INITIAL_MEETING_SCHEDULES.forEach((initM) => {
+            const exists = mergedMeetings.some((m) => m.meeting_type === initM.meeting_type);
+            if (!exists) mergedMeetings.push(initM);
+          });
+          memoryMeetingSchedules = mergedMeetings;
+        } else {
+          memoryMeetingSchedules = [...INITIAL_MEETING_SCHEDULES];
+        }
+      } catch {
+        memoryMeetingSchedules = [...INITIAL_MEETING_SCHEDULES];
+      }
+    } else {
+      memoryMeetingSchedules = [...INITIAL_MEETING_SCHEDULES];
+    }
+    localStorage.setItem(STORAGE_KEY_MEETINGS, JSON.stringify(memoryMeetingSchedules));
+
+    // Clean up old legacy keys to free storage and avoid conflicts
+    LEGACY_STORAGE_KEYS.forEach((oldKey) => {
+      try {
+        localStorage.removeItem(oldKey);
+      } catch {}
+    });
   } catch (err) {
     console.warn('Error reading from localStorage:', err);
   }
@@ -487,7 +691,7 @@ export function getSyncStatus() {
 
 export function getUsers(): UserProfile[] {
   return memoryUsers.map((u) => {
-    const emailLower = (u.email || '').toLowerCase().trim();
+    const emailLower = (u?.email || '').toLowerCase().trim();
     if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
       return { ...u, role: 'admin' as const };
     } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
@@ -499,22 +703,18 @@ export function getUsers(): UserProfile[] {
 
 export function upsertUserInMemory(profile: UserProfile): void {
   if (!profile) return;
-  const emailLower = (profile.email || '').toLowerCase().trim();
-  if (emailLower === 'aswin@dwellvise.com' || emailLower === 'dinesh@dwellvise.com') {
-    profile.role = 'admin';
-  } else if (emailLower === 'pachamuthu@dwellvise.com' || emailLower === 'shalini@dwellvise.com') {
-    profile.role = 'employee';
-  }
+  const normalized = normalizeUserRecord(profile);
+  const emailLower = (normalized.email || '').toLowerCase().trim();
   const idx = memoryUsers.findIndex(
     (u) =>
-      u.id === profile.id ||
-      (profile.auth_user_id && (u.auth_user_id === profile.auth_user_id || u.id === profile.auth_user_id)) ||
-      (profile.email && u.email && (u.email || '').toLowerCase().trim() === emailLower)
+      u.id === normalized.id ||
+      (normalized.auth_user_id && (u.auth_user_id === normalized.auth_user_id || u.id === normalized.auth_user_id)) ||
+      (normalized.email && u.email && (u.email || '').toLowerCase().trim() === emailLower)
   );
   if (idx !== -1) {
-    memoryUsers[idx] = { ...memoryUsers[idx], ...profile };
+    memoryUsers[idx] = { ...memoryUsers[idx], ...normalized };
   } else {
-    memoryUsers.push(profile);
+    memoryUsers.push(normalized);
   }
   persistStore();
 }
@@ -557,7 +757,7 @@ export function getLeaveById(id: string): LeaveRequest | undefined {
 }
 
 export function getHolidays(): GovernmentHoliday[] {
-  return [...memoryHolidays].sort((a, b) => a.date.localeCompare(b.date));
+  return [...memoryHolidays].sort((a, b) => (a?.date || '').localeCompare(b?.date || ''));
 }
 
 export function getMentions(): ManualCalendarEvent[] {
@@ -566,15 +766,16 @@ export function getMentions(): ManualCalendarEvent[] {
       ...m,
       creator: memoryUsers.find((u) => u.id === m.created_by),
     }))
-    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    .sort((a, b) => (a?.start_date || '').localeCompare(b?.start_date || ''));
 }
 
 export function getNotifications(recipientId: string): AppNotification[] {
   if (!recipientId) return [];
   return memoryNotifications
     .filter((n) => n.recipient_user_id === recipientId || n.recipient_id === recipientId || n.userId === recipientId)
-    .sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+    .sort((a, b) => new Date(b?.created_at || b?.createdAt || 0).getTime() - new Date(a?.created_at || a?.createdAt || 0).getTime());
 }
+
 
 export async function markNotificationAsRead(id: string): Promise<{ success: boolean; message: string }> {
   const index = memoryNotifications.findIndex((n) => n.id === id);
@@ -738,11 +939,13 @@ export function getCalendarEvents(
   // 1. Add Government Holidays
   if (filter?.showHolidays !== false) {
     memoryHolidays.forEach((holiday) => {
+      const hName = holiday?.name || '';
+      const hDesc = holiday?.description || '';
       if (filter?.searchQuery) {
-        const query = filter.searchQuery.toLowerCase();
+        const query = (filter.searchQuery || '').toLowerCase().trim();
         if (
-          !holiday.name.toLowerCase().includes(query) &&
-          !holiday.description.toLowerCase().includes(query)
+          !hName.toLowerCase().includes(query) &&
+          !hDesc.toLowerCase().includes(query)
         ) {
           return;
         }
@@ -751,12 +954,12 @@ export function getCalendarEvents(
       events.push({
         id: `event-${holiday.id}`,
         type: 'holiday',
-        title: holiday.name,
-        startDate: holiday.date,
-        endDate: holiday.date,
+        title: hName,
+        startDate: holiday.date || '2026-01-01',
+        endDate: holiday.date || '2026-01-01',
         isHoliday: true,
-        holidayType: holiday.holiday_type,
-        description: holiday.description,
+        holidayType: holiday.holiday_type || 'Public Holiday',
+        description: hDesc,
         rawHoliday: holiday,
       });
     });
@@ -766,10 +969,12 @@ export function getCalendarEvents(
   if (filter?.showMentions !== false) {
     const allMentions = getMentions();
     allMentions.forEach((mention) => {
+      const mTitle = mention?.title || '';
+      const mDesc = mention?.description || '';
       if (filter?.searchQuery) {
-        const query = filter.searchQuery.toLowerCase();
-        const t = mention.title.toLowerCase();
-        const d = (mention.description || '').toLowerCase();
+        const query = (filter.searchQuery || '').toLowerCase().trim();
+        const t = mTitle.toLowerCase();
+        const d = mDesc.toLowerCase();
         if (!t.includes(query) && !d.includes(query)) {
           return;
         }
@@ -778,11 +983,11 @@ export function getCalendarEvents(
       events.push({
         id: `event-${mention.id}`,
         type: 'mention',
-        title: mention.title,
-        startDate: mention.start_date,
-        endDate: mention.end_date,
-        manualEventType: mention.event_type,
-        description: mention.description,
+        title: mTitle,
+        startDate: mention.start_date || '2026-10-01',
+        endDate: mention.end_date || mention.start_date || '2026-10-01',
+        manualEventType: mention.event_type || 'notice',
+        description: mDesc,
         rawMention: mention,
       });
     });
@@ -795,7 +1000,7 @@ export function getCalendarEvents(
     // CRITICAL REQUIREMENT:
     // Only approved leaves marked explicitly with show_on_calendar = true appear on the shared calendar.
     // Pending leaves, rejected leaves, and hidden leaves (show_on_calendar = false) DO NOT appear.
-    if (leave.status !== 'approved' || !leave.show_on_calendar) {
+    if ((leave.status || '').toLowerCase() !== 'approved' || !leave.show_on_calendar) {
       return;
     }
 
@@ -811,9 +1016,9 @@ export function getCalendarEvents(
       return;
     }
     if (filter?.searchQuery) {
-      const query = filter.searchQuery.toLowerCase();
-      const userName = user?.full_name?.toLowerCase() || '';
-      const lType = leave.leave_type.toLowerCase();
+      const query = (filter.searchQuery || '').toLowerCase().trim();
+      const userName = (user?.full_name || '').toLowerCase();
+      const lType = (leave.leave_type || '').toLowerCase();
       if (!userName.includes(query) && !lType.includes(query)) {
         return;
       }
@@ -822,9 +1027,9 @@ export function getCalendarEvents(
     events.push({
       id: `event-${leave.id}`,
       type: 'leave',
-      title: `${user?.full_name || 'Employee'} - ${leave.leave_type}`,
-      startDate: leave.start_date,
-      endDate: leave.end_date,
+      title: `${user?.full_name || 'Employee'} - ${leave.leave_type || 'Leave'}`,
+      startDate: leave.start_date || '2026-10-01',
+      endDate: leave.end_date || leave.start_date || '2026-10-01',
       leaveType: leave.leave_type,
       status: leave.status,
       showOnCalendar: leave.show_on_calendar,

@@ -36,6 +36,9 @@ export default function GlobalError({
               type="button"
               onClick={() => {
                 if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.removeItem('officeflow_active_user_id');
+                  } catch {}
                   window.location.href = '/login';
                 } else {
                   reset();
